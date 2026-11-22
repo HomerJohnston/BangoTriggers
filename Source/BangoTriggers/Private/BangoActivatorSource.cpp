@@ -1,13 +1,13 @@
 #include "BangoActivatorSource.h"
 
 #include "BangoActorRegistry.h"
-#include "BangoTrigger.h"
+#include "BangoTriggerComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 
-void FBangoActorClassSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const
+void FBangoActorClassSource::Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const
 {
 	UWorld* World = Trigger.GetWorld();
 	if (!World)
@@ -26,7 +26,7 @@ void FBangoActorClassSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*
 	}
 }
 
-void FBangoIDsSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const
+void FBangoIDsSource::Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const
 {
 	if (const UBangoActorRegistry* Registry = UBangoActorRegistry::Get(&Trigger))
 	{
@@ -40,7 +40,7 @@ void FBangoIDsSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutA
 	}
 }
 
-void FBangoPlayersSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const
+void FBangoPlayersSource::Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const
 {
 	if (const UWorld* World = Trigger.GetWorld())
 	{
@@ -55,7 +55,7 @@ void FBangoPlayersSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*>& 
 	}
 }
 
-void FBangoLocalPlayersSource::Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const
+void FBangoLocalPlayersSource::Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const
 {
 	if (const UWorld* World = Trigger.GetWorld())
 	{

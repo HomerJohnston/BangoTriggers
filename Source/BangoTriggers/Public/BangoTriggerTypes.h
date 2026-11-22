@@ -50,9 +50,24 @@ enum class EBangoTriggerTimerMode : uint8
 	Countdown,
 };
 
+/** The state a trigger begins play in (spec section 9). */
+UENUM(BlueprintType)
+enum class EBangoTriggerStartState : uint8
+{
+	/** Idle: nothing runs until the Rule is first met. */
+	Deactivated,
+	/**
+	 * Undetermined: at its first check it settles, at once (no timers), and runs On Activated or On Deactivated with
+	 * _initial true. For things whose own starting state isn't known, like a light a trigger switches.
+	 */
+	Undetermined,
+};
+
 UENUM(BlueprintType)
 enum class EBangoTriggerState : uint8
 {
+	/** Started as Undetermined, and hasn't had its first check (or is disabled): neither active nor idle yet. */
+	Undetermined,
 	Idle,
 	/** The Activation Timer is running. */
 	Activating,

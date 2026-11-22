@@ -334,6 +334,9 @@ bool FBangoTriggersStepsTest::RunTest(const FString& Parameters)
 		TestEqual(What, (int32)Got, (int32)Want);
 	};
 
+	Expect(TEXT("Undetermined, met: settle activated"), NextStep(EState::Undetermined, true, EMode::Timeout, EMode::Timeout), EStep::SettleActivated);
+	Expect(TEXT("Undetermined, not met: settle deactivated"), NextStep(EState::Undetermined, false, EMode::Countdown, EMode::Countdown), EStep::SettleDeactivated);
+
 	Expect(TEXT("Idle, met: start activating"), NextStep(EState::Idle, true, EMode::None, EMode::None), EStep::StartActivation);
 	Expect(TEXT("Idle, not met: nothing"), NextStep(EState::Idle, false, EMode::None, EMode::None), EStep::None);
 

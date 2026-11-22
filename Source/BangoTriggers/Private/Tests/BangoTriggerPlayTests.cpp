@@ -4,7 +4,9 @@
 
 #include "BangoGlobalsSubsystem.h"
 #include "BangoIDActorComponent.h"
+#include "BangoScriptSubsystem.h"
 #include "BangoTrigger.h"
+#include "BangoTriggerComponent.h"
 #include "BangoTriggerTestActor.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -72,17 +74,34 @@ namespace BangoTriggerPlayTestsPrivate
 			return Actor;
 		}
 
-		/** A trigger with no sources or regions and a Poll Interval of 0, set up by Setup before it begins play. */
-		ABangoTrigger* SpawnTrigger(TFunctionRef<void(ABangoTrigger&)> Setup)
+		/** A standalone trigger at the origin, with no sources or regions and a Poll Interval of 0, set up by Setup before it begins play. */
+		UBangoTriggerComponent* SpawnTrigger(TFunctionRef<void(UBangoTriggerComponent&)> Setup)
 		{
-			ABangoTrigger* Trigger = World->SpawnActorDeferred<ABangoTrigger>(ABangoTrigger::StaticClass(), FTransform::Identity);
-			Trigger->Sources.Reset();
-			Trigger->Regions.Reset();
-			Trigger->PollInterval = 0.0f;
+			ABangoTrigger* Actor = World->SpawnActorDeferred<ABangoTrigger>(ABangoTrigger::StaticClass(), FTransform::Identity);
+			UBangoTriggerComponent* Trigger = Actor->GetTrigger();
+			Clear(*Trigger);
 			Setup(*Trigger);
-			Trigger->FinishSpawning(FTransform::Identity);
+			Actor->FinishSpawning(FTransform::Identity);
 			Listener->Listen(Trigger);
 			return Trigger;
+		}
+
+		/** A trigger component added to Owner while playing (so it begins play at once), set up like SpawnTrigger's. */
+		UBangoTriggerComponent* AddTrigger(AActor* Owner, TFunctionRef<void(UBangoTriggerComponent&)> Setup)
+		{
+			UBangoTriggerComponent* Trigger = NewObject<UBangoTriggerComponent>(Owner, TEXT("DoorTrigger"));
+			Clear(*Trigger);
+			Setup(*Trigger);
+			Trigger->RegisterComponent();
+			Listener->Listen(Trigger);
+			return Trigger;
+		}
+
+		static void Clear(UBangoTriggerComponent& Trigger)
+		{
+			Trigger.Sources.Reset();
+			Trigger.Regions.Reset();
+			Trigger.PollInterval = 0.0f;
 		}
 
 		void SetGlobal(const TCHAR* Name, const FBangoValue& Value)
@@ -101,6 +120,14 @@ namespace BangoTriggerPlayTestsPrivate
 			const FBangoValue* Value = Globals ? Globals->Find(Name) : nullptr;
 			return (Value && !Value->IsNil()) ? Value->GetInt() : -1;
 		}
+
+		/** A global float's value, or -1 if it isn't set. */
+		double GetGlobalFloat(const TCHAR* Name) const
+		{
+			const UBangoGlobalsSubsystem* Globals = UBangoGlobalsSubsystem::Get(World);
+			const FBangoValue* Value = Globals ? Globals->Find(Name) : nullptr;
+			return (Value && !Value->IsNil()) ? Value->GetDouble() : -1.0;
+		}
 	};
 
 	TInstancedStruct<FBangoActivatorSource> TestActors()
@@ -117,7 +144,7 @@ namespace BangoTriggerPlayTestsPrivate
 		return TInstancedStruct<FBangoActivatorSource>::Make<FBangoIDsSource>(Source);
 	}
 
-	/** A 200 by 200 area around the trigger (at the origin). */
+	/** A 200 by 200 area around the trigger's actor. */
 	TInstancedStruct<FBangoTriggerRegion> Box200()
 	{
 		FBangoAreaRegion Area;
@@ -141,7 +168,7 @@ bool FBangoTriggersPlayEnterLeaveTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
 	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Outside);
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(TestActors());
 		T.Regions.Add(Box200());
@@ -176,7 +203,7 @@ bool FBangoTriggersPlayConditionTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
 	W.Spawn(TEXT("a"), Inside);
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(TestActors());
 		T.Regions.Add(Box200());
@@ -206,7 +233,7 @@ bool FBangoTriggersPlayNotPresentAllTest::RunTest(const FString& Parameters)
 	FPlayWorld W;
 	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Outside);
 	W.Spawn(TEXT("b"), Outside + FVector(0, 500, 0));
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(IDs({ TEXT("a"), TEXT("b") }));
 		T.Regions.Add(Box200());
@@ -234,7 +261,7 @@ bool FBangoTriggersPlayDestroyedTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
 	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Inside);
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(TestActors());
 		T.Regions.Add(Box200());
@@ -255,7 +282,7 @@ bool FBangoTriggersPlayMaxActivationsTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
 	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Inside);
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(TestActors());
 		T.Regions.Add(Box200());
@@ -280,7 +307,7 @@ BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayScriptsTest, "Scripts")
 bool FBangoTriggersPlayScriptsTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(TestActors());
 		T.Regions.Add(Box200());
@@ -301,12 +328,108 @@ bool FBangoTriggersPlayScriptsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayScriptHandlesTest, "ScriptHandles")
+
+bool FBangoTriggersPlayScriptHandlesTest::RunTest(const FString& Parameters)
+{
+	FPlayWorld W;
+	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Outside);
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.Sources.Add(TestActors());
+		T.Regions.Add(Box200());
+		// Each stops the other (Abort(0) does nothing), then waits, so it's still running when the other starts.
+		T.ActivatedScript.Source = TEXT("global int seenDeact = -1;\nseenDeact = _deactivatedScriptHandle;\nAbort(_deactivatedScriptHandle);\nSleep(100);");
+		T.DeactivatedScript.Source = TEXT("global int seenAct = -1;\nseenAct = _activatedScriptHandle;\nAbort(_activatedScriptHandle);\nSleep(100);");
+	});
+	const UBangoScriptSubsystem* Scripts = UBangoScriptSubsystem::Get(W.World);
+	if (!TestNotNull(TEXT("Script subsystem"), Scripts))
+	{
+		return false;
+	}
+
+	A->SetActorLocation(Inside);
+	W.Tick();
+	const FBangoScriptHandle Activated = Trigger->GetActivatedScriptHandle();
+	TestTrue(TEXT("On Activated started"), Activated.IsValid() && Scripts->IsRunning(Activated));
+	TestEqual(TEXT("No On Deactivated yet: 0"), W.GetGlobalInt(TEXT("seenDeact")), 0);
+
+	A->SetActorLocation(Outside);
+	W.Tick();
+	const FBangoScriptHandle Deactivated = Trigger->GetDeactivatedScriptHandle();
+	TestTrue(TEXT("On Deactivated started"), Deactivated.IsValid() && Scripts->IsRunning(Deactivated));
+	TestEqual(TEXT("On Deactivated got On Activated's id"), W.GetGlobalInt(TEXT("seenAct")), Activated.Id);
+	TestFalse(TEXT("On Deactivated stopped On Activated"), Scripts->IsRunning(Activated));
+
+	A->SetActorLocation(Inside);
+	W.Tick();
+	TestEqual(TEXT("On Activated got On Deactivated's id"), W.GetGlobalInt(TEXT("seenDeact")), Deactivated.Id);
+	TestFalse(TEXT("On Activated stopped On Deactivated"), Scripts->IsRunning(Deactivated));
+	TestTrue(TEXT("A new On Activated is running"), Scripts->IsRunning(Trigger->GetActivatedScriptHandle()));
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayOnActorTest, "OnActor")
+
+bool FBangoTriggersPlayOnActorTest::RunTest(const FString& Parameters)
+{
+	// A trigger on a door: the door is a test actor too, and inside its own area, but is never gathered.
+	FPlayWorld W;
+	const FVector DoorAt(5000, 0, 0);
+	ABangoTriggerTestActor* Door = W.Spawn(TEXT("door"), DoorAt);
+	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), DoorAt);
+	UBangoTriggerComponent* Trigger = W.AddTrigger(Door, [](UBangoTriggerComponent& T)
+	{
+		T.Sources.Add(TestActors());
+		T.Regions.Add(Box200());
+	});
+
+	W.Tick();
+	const TArray<AActor*> Gathered = Trigger->GetGatheredActors();
+	TestTrue(TEXT("Its own actor isn't gathered"), Gathered.Num() == 1 && Gathered[0] == A);
+	TestEqual(TEXT("A at the door"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
+
+	// The regions are placed from the actor: moving the door moves the area away from a.
+	Door->SetActorLocation(FVector(8000, 0, 0));
+	W.Tick();
+	TestEqual(TEXT("The door moved away"), W.Listener->Take(), FString(TEXT("Out:a|Deactivated:a")));
+
+	A->SetActorLocation(FVector(8050, 50, 0));
+	W.Tick();
+	TestEqual(TEXT("A followed it"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlaySelfAndTriggerTest, "SelfAndTrigger")
+
+bool FBangoTriggersPlaySelfAndTriggerTest::RunTest(const FString& Parameters)
+{
+	// In a trigger component's scripts, self is its actor and _trigger is the component.
+	FPlayWorld W;
+	ABangoTriggerTestActor* Door = W.Spawn(TEXT("door"), Inside);
+	W.Spawn(TEXT("a"), Inside);
+	UBangoTriggerComponent* Trigger = W.AddTrigger(Door, [](UBangoTriggerComponent& T)
+	{
+		T.Sources.Add(IDs({ TEXT("a") }));
+		T.Regions.Add(Box200());
+		T.ActivatedScript.Source = TEXT("global int selfIsDoor = 0;\nif (self == @door) { selfIsDoor = 1; }\nglobal int count = -1;\ncount = _trigger call GetActivationCount();");
+		// The Condition reads the component too.
+		T.Condition.Source = TEXT("_trigger call IsTriggerEnabled()");
+	});
+
+	W.Tick(3);
+	TestEqual(TEXT("Activated (the Condition read _trigger)"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
+	TestEqual(TEXT("self is the door"), W.GetGlobalInt(TEXT("selfIsDoor")), 1);
+	TestEqual(TEXT("_trigger is the component"), W.GetGlobalInt(TEXT("count")), Trigger->GetActivationCount());
+	return true;
+}
+
 BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayNoSourcesTest, "NoSources")
 
 bool FBangoTriggersPlayNoSourcesTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Condition.Source = TEXT("allowed");
 	});
@@ -330,7 +453,7 @@ bool FBangoTriggersPlayTimeoutTest::RunTest(const FString& Parameters)
 {
 	FPlayWorld W;
 	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Outside);
-	ABangoTrigger* Trigger = W.SpawnTrigger([](ABangoTrigger& T)
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(TestActors());
 		T.Regions.Add(Box200());
@@ -354,6 +477,233 @@ bool FBangoTriggersPlayTimeoutTest::RunTest(const FString& Parameters)
 	W.Tick(8);
 	TestEqual(TEXT("Staying in: in, then activated after the timer"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
 	TestTrue(TEXT("Staying in: active"), Trigger->IsTriggerActive());
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayStartUndeterminedOffTest, "StartUndetermined.Deactivated")
+
+bool FBangoTriggersPlayStartUndeterminedOffTest::RunTest(const FString& Parameters)
+{
+	// Nobody there at the start: an Undetermined trigger still runs On Deactivated, so a light it switches goes off.
+	FPlayWorld W;
+	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Outside);
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.StartState = EBangoTriggerStartState::Undetermined;
+		T.PollInterval = 5.0f;
+		T.Sources.Add(TestActors());
+		T.Regions.Add(Box200());
+		T.DeactivatedScript.Source = TEXT("global int initialOff = -1;\nif (_initial) { initialOff = 1; } else { initialOff = 0; }");
+	});
+	TestEqual(TEXT("Before its first check: undetermined"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Undetermined);
+	TestFalse(TEXT("Undetermined isn't active"), Trigger->IsTriggerActive());
+
+	// On the first frame, even with a long Poll Interval.
+	W.Tick(1);
+	TestEqual(TEXT("Settled deactivated, about nobody"), W.Listener->Take(), FString(TEXT("Deactivated(initial):")));
+	TestEqual(TEXT("Idle"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Idle);
+	TestEqual(TEXT("_initial was true"), W.GetGlobalInt(TEXT("initialOff")), 1);
+	TestEqual(TEXT("Not an activation"), Trigger->GetActivationCount(), 0);
+
+	// From then on, as usual.
+	Trigger->PollInterval = 0.0f;
+	A->SetActorLocation(Inside);
+	W.Tick(60);
+	A->SetActorLocation(Outside);
+	W.Tick();
+	TestEqual(TEXT("Then as usual"), W.Listener->Take(), FString(TEXT("In:a|Activated:a|Out:a|Deactivated:a")));
+	TestEqual(TEXT("_initial false after"), W.GetGlobalInt(TEXT("initialOff")), 0);
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayStartUndeterminedOnTest, "StartUndetermined.Activated")
+
+bool FBangoTriggersPlayStartUndeterminedOnTest::RunTest(const FString& Parameters)
+{
+	// Someone there at the start: In, then On Activated at once, skipping the Activation Timer.
+	FPlayWorld W;
+	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Inside);
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.StartState = EBangoTriggerStartState::Undetermined;
+		T.Sources.Add(TestActors());
+		T.Regions.Add(Box200());
+		T.ActivationTimer.Mode = EBangoTriggerTimerMode::Timeout;
+		T.ActivationTimer.MinTime = 5.0f;
+		T.ActivationTimer.MaxTime = 5.0f;
+		T.ActivatedScript.Source = TEXT("global int initialOn = -1;\nif (_initial) { initialOn = 1; } else { initialOn = 0; }");
+	});
+
+	W.Tick(1);
+	TestEqual(TEXT("Settled activated at once"), W.Listener->Take(), FString(TEXT("In:a|Activated(initial):a")));
+	TestTrue(TEXT("Active"), Trigger->IsTriggerActive());
+	TestEqual(TEXT("_initial was true"), W.GetGlobalInt(TEXT("initialOn")), 1);
+	TestEqual(TEXT("It counts as an activation"), Trigger->GetActivationCount(), 1);
+
+	// From then on, the timer applies.
+	A->SetActorLocation(Outside);
+	W.Tick();
+	A->SetActorLocation(Inside);
+	W.Tick();
+	TestEqual(TEXT("Then as usual"), W.Listener->Take(), FString(TEXT("Out:a|Deactivated:a|In:a")));
+	TestEqual(TEXT("The Activation Timer runs now"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Activating);
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayStartUndeterminedLaterTest, "StartUndetermined.DisabledAndReset")
+
+bool FBangoTriggersPlayStartUndeterminedLaterTest::RunTest(const FString& Parameters)
+{
+	FPlayWorld W;
+	W.Spawn(TEXT("a"), Inside);
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.StartState = EBangoTriggerStartState::Undetermined;
+		T.bStartEnabled = false;
+		T.Sources.Add(TestActors());
+		T.Regions.Add(Box200());
+	});
+
+	// Disabled: it stays undetermined until enabled, then settles at its next check.
+	W.Tick();
+	TestEqual(TEXT("Disabled: nothing"), W.Listener->Take(), FString());
+	TestEqual(TEXT("Disabled: undetermined"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Undetermined);
+	Trigger->SetTriggerEnabled(true);
+	W.Tick(1);
+	TestEqual(TEXT("Enabled: settled"), W.Listener->Take(), FString(TEXT("In:a|Activated(initial):a")));
+
+	// Reset: back to undetermined, and it settles again.
+	Trigger->ResetTrigger();
+	TestEqual(TEXT("Reset: undetermined"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Undetermined);
+	W.Tick(1);
+	TestEqual(TEXT("Reset: settled again"), W.Listener->Take(), FString(TEXT("In:a|Activated(initial):a")));
+	TestEqual(TEXT("Reset: one activation"), Trigger->GetActivationCount(), 1);
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayComponentActivationTest, "ComponentActivation")
+
+bool FBangoTriggersPlayComponentActivationTest::RunTest(const FString& Parameters)
+{
+	// The engine's component activation (Activate, Deactivate) isn't the trigger's: it changes nothing.
+	FPlayWorld W;
+	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Outside);
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.Sources.Add(TestActors());
+		T.Regions.Add(Box200());
+	});
+	W.Tick();
+
+	Trigger->Activate(true);
+	W.Tick();
+	TestEqual(TEXT("Activate: nothing runs"), W.Listener->Take(), FString());
+	TestEqual(TEXT("Activate: still idle"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Idle);
+
+	A->SetActorLocation(Inside);
+	W.Tick();
+	Trigger->Deactivate();
+	W.Tick();
+	TestEqual(TEXT("Deactivate: only the trigger's own events"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
+	TestTrue(TEXT("Deactivate: still active"), Trigger->IsTriggerActive());
+	return true;
+}
+
+namespace
+{
+	FBangoTriggerConstant MakeConstant(const TCHAR* Name, const TCHAR* Type, const TCHAR* Value, AActor* Actor = nullptr)
+	{
+		FBangoTriggerConstant Constant;
+		Constant.Name = Name;
+		Constant.Type = Type;
+		Constant.Value = Value;
+		Constant.Actor = Actor;
+		return Constant;
+	}
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayConstantsTest, "Constants")
+
+bool FBangoTriggersPlayConstantsTest::RunTest(const FString& Parameters)
+{
+	// The trigger's own constants, read by its scripts (after their other inputs) and its Condition (by name).
+	FPlayWorld W;
+	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Inside);
+	ABangoTriggerTestActor* Lamp = W.Spawn(TEXT("lamp"), FVector(9000, 0, 0));
+	W.Spawn(TEXT("bulb"), FVector(9500, 0, 0));
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([Lamp](UBangoTriggerComponent& T)
+	{
+		T.Sources.Add(IDs({ TEXT("a") }));
+		T.Regions.Add(Box200());
+		T.Constants.Add(MakeConstant(TEXT("_red"), TEXT("vector3"), TEXT("[1, 0, 0]")));
+		T.Constants.Add(MakeConstant(TEXT("_need"), TEXT("int"), TEXT("3")));
+		// An entity is a picked actor; its Value text isn't used.
+		T.Constants.Add(MakeConstant(TEXT("_lamp"), TEXT("entity"), TEXT("ignored"), Lamp));
+		T.Constants.Add(MakeConstant(TEXT("_lamps"), TEXT("entity[]"), TEXT("[@bulb, nil]")));
+		// The Condition is only true while the global reaches the constant.
+		T.Condition.Source = TEXT("have >= _need");
+		T.ActivatorInScript.Source = TEXT("global float inRed = 0;\ninRed = _red.x;");
+		T.ActivatedScript.Source = TEXT("global int lampOk = 0;\nif (_lamp == @lamp && _lamps[0] == @bulb && IsNil(_lamps[1]) && !_initial) { lampOk = 1; }");
+		T.DeactivatedScript.Source = TEXT("global float outRed = 0;\noutRed = _red.x + _need;");
+	});
+	W.SetGlobal(TEXT("have"), FBangoValue::MakeInt(0));
+
+	W.Tick();
+	TestEqual(TEXT("Condition below the constant: nothing"), W.Listener->Take(), FString());
+	W.SetGlobal(TEXT("have"), FBangoValue::MakeInt(3));
+	W.Tick();
+	TestEqual(TEXT("Condition reaches the constant"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
+	TestEqual(TEXT("On Activator In read a vector3"), W.GetGlobalFloat(TEXT("inRed")), 1.0);
+	TestEqual(TEXT("On Activated read a picked actor and an entity array (after _initial)"), W.GetGlobalInt(TEXT("lampOk")), 1);
+
+	A->SetActorLocation(Outside);
+	W.Tick();
+	TestEqual(TEXT("Out"), W.Listener->Take(), FString(TEXT("Out:a|Deactivated:a")));
+	TestEqual(TEXT("On Deactivated read two"), W.GetGlobalFloat(TEXT("outRed")), 4.0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBangoTriggersConstantValuesTest, "Triggers.Constants.Values",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FBangoTriggersConstantValuesTest::RunTest(const FString& Parameters)
+{
+	// A constant's value, read from its Bango text as a script variable's is.
+	FBangoValue Value;
+	FString Error;
+	TestTrue(TEXT("int"), MakeConstant(TEXT("_n"), TEXT("int"), TEXT("3")).GetValue(Value, Error) && Value.GetInt() == 3);
+	TestTrue(TEXT("Empty is nil"), MakeConstant(TEXT("_n"), TEXT("int"), TEXT("")).GetValue(Value, Error) && Value.IsNil());
+	TestTrue(TEXT("vector3"), MakeConstant(TEXT("_v"), TEXT("vector3"), TEXT("[1, 2, 3]")).GetValue(Value, Error)
+		&& Value == FBangoValue::MakeVector3(1, 2, 3));
+	TestTrue(TEXT("entity with no actor: nil"), MakeConstant(TEXT("_e"), TEXT("entity"), TEXT("")).GetValue(Value, Error) && Value.IsNil());
+
+	TestFalse(TEXT("A vector3 with 2 numbers"), MakeConstant(TEXT("_v"), TEXT("vector3"), TEXT("[1, 2]")).GetValue(Value, Error));
+	TestFalse(TEXT("Not a fixed value"), MakeConstant(TEXT("_n"), TEXT("int"), TEXT("1 + 2")).GetValue(Value, Error));
+	TestFalse(TEXT("Not a type"), MakeConstant(TEXT("_n"), TEXT("integer"), TEXT("1")).GetValue(Value, Error));
+	TestTrue(TEXT("It says why"), Error.Contains(TEXT("integer")));
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayConstantsWrongTest, "Constants.Wrong")
+
+bool FBangoTriggersPlayConstantsWrongTest::RunTest(const FString& Parameters)
+{
+	// A constant can't take a built-in input's name, or another constant's.
+	UBangoTriggerComponent* Trigger = NewObject<UBangoTriggerComponent>();
+	Trigger->Constants.Add(MakeConstant(TEXT("_count"), TEXT("int"), TEXT("0")));
+	FString Error;
+	TestTrue(TEXT("A good name"), Trigger->UpdateConstants(&Error));
+
+	Trigger->Constants.Add(MakeConstant(TEXT("_initial"), TEXT("bool"), TEXT("false")));
+	TestFalse(TEXT("A built-in input's name"), Trigger->UpdateConstants(&Error));
+	TestTrue(TEXT("It says which"), Error.Contains(TEXT("_initial")));
+
+	Trigger->Constants.RemoveAt(1);
+	Trigger->Constants.Add(MakeConstant(TEXT("_count"), TEXT("int"), TEXT("1")));
+	TestFalse(TEXT("Another constant's name"), Trigger->UpdateConstants(&Error));
+
+	Trigger->Constants.RemoveAt(1);
+	TestTrue(TEXT("Fixed again"), Trigger->UpdateConstants(&Error));
 	return true;
 }
 

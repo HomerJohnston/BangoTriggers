@@ -1,7 +1,7 @@
 #include "BangoTriggerTestActor.h"
 
 #include "BangoIDActorComponent.h"
-#include "BangoTrigger.h"
+#include "BangoTriggerComponent.h"
 #include "Components/SceneComponent.h"
 
 ABangoTriggerTestActor::ABangoTriggerTestActor()
@@ -10,7 +10,7 @@ ABangoTriggerTestActor::ABangoTriggerTestActor()
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 }
 
-void UBangoTriggerTestListener::Listen(ABangoTrigger* Trigger)
+void UBangoTriggerTestListener::Listen(UBangoTriggerComponent* Trigger)
 {
 	Trigger->OnActivatorIn.AddDynamic(this, &UBangoTriggerTestListener::OnIn);
 	Trigger->OnActivatorOut.AddDynamic(this, &UBangoTriggerTestListener::OnOut);
@@ -25,24 +25,24 @@ FString UBangoTriggerTestListener::Take()
 	return Joined;
 }
 
-void UBangoTriggerTestListener::OnIn(ABangoTrigger* Trigger, const TArray<AActor*>& Activators)
+void UBangoTriggerTestListener::OnIn(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators)
 {
 	Add(TEXT("In"), Activators);
 }
 
-void UBangoTriggerTestListener::OnOut(ABangoTrigger* Trigger, const TArray<AActor*>& Activators)
+void UBangoTriggerTestListener::OnOut(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators)
 {
 	Add(TEXT("Out"), Activators);
 }
 
-void UBangoTriggerTestListener::OnActivated(ABangoTrigger* Trigger, const TArray<AActor*>& Activators)
+void UBangoTriggerTestListener::OnActivated(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators, bool bInitial)
 {
-	Add(TEXT("Activated"), Activators);
+	Add(bInitial ? TEXT("Activated(initial)") : TEXT("Activated"), Activators);
 }
 
-void UBangoTriggerTestListener::OnDeactivated(ABangoTrigger* Trigger, const TArray<AActor*>& Activators)
+void UBangoTriggerTestListener::OnDeactivated(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators, bool bInitial)
 {
-	Add(TEXT("Deactivated"), Activators);
+	Add(bInitial ? TEXT("Deactivated(initial)") : TEXT("Deactivated"), Activators);
 }
 
 void UBangoTriggerTestListener::Add(const TCHAR* What, const TArray<AActor*>& Activators)

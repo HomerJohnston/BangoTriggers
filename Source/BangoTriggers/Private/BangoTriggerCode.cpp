@@ -25,10 +25,7 @@ void FBangoTriggerScript::Prepare(const FBangoInlineScript& InScript, const UObj
 	bUsable = true;
 }
 
-void FBangoTriggerScript::Spawn(UBangoScriptSubsystem& Scripts, const TArray<FBangoValue>& Args) const
+FBangoScriptHandle FBangoTriggerScript::Spawn(UBangoScriptSubsystem& Scripts, const TArray<FBangoValue>& Args) const
 {
-	if (bUsable)
-	{
-		Scripts.Spawn(Script, Args, Owner.Get());
-	}
+	return bUsable ? Scripts.Spawn(Script, Args, Owner.Get()) : FBangoScriptHandle();
 }

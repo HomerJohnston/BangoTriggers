@@ -4,7 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "BangoTriggerTestActor.generated.h"
 
-class ABangoTrigger;
+class UBangoTriggerComponent;
 
 /** For the Triggers.Play tests: an actor with a root component, so it can be moved. */
 UCLASS(NotPlaceable, Transient, HideDropdown)
@@ -16,7 +16,10 @@ public:
 	ABangoTriggerTestActor();
 };
 
-/** For the Triggers.Play tests: writes down each trigger event, as "In:a,b" (a destroyed actor is "nil"). */
+/**
+ * For the Triggers.Play tests: writes down each trigger event, as "In:a,b" (a destroyed actor is "nil"). An Undetermined
+ * trigger's first state is "Activated(initial):a" or "Deactivated(initial):".
+ */
 UCLASS(Transient)
 class UBangoTriggerTestListener : public UObject
 {
@@ -25,22 +28,22 @@ class UBangoTriggerTestListener : public UObject
 public:
 	TArray<FString> Events;
 
-	void Listen(ABangoTrigger* Trigger);
+	void Listen(UBangoTriggerComponent* Trigger);
 
 	/** The events so far, joined with "|", and forgets them. */
 	FString Take();
 
 	UFUNCTION()
-	void OnIn(ABangoTrigger* Trigger, const TArray<AActor*>& Activators);
+	void OnIn(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators);
 
 	UFUNCTION()
-	void OnOut(ABangoTrigger* Trigger, const TArray<AActor*>& Activators);
+	void OnOut(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators);
 
 	UFUNCTION()
-	void OnActivated(ABangoTrigger* Trigger, const TArray<AActor*>& Activators);
+	void OnActivated(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators, bool bInitial);
 
 	UFUNCTION()
-	void OnDeactivated(ABangoTrigger* Trigger, const TArray<AActor*>& Activators);
+	void OnDeactivated(UBangoTriggerComponent* Trigger, const TArray<AActor*>& Activators, bool bInitial);
 
 private:
 	void Add(const TCHAR* What, const TArray<AActor*>& Activators);

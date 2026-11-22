@@ -5,7 +5,7 @@
 
 /**
  * The decisions a trigger makes, as plain functions with no world or actors, so they can be tested on their own
- * (Private/Tests/BangoTriggerTests.cpp). ABangoTrigger calls them.
+ * (Private/Tests/BangoTriggerTests.cpp). UBangoTriggerComponent calls them.
  */
 namespace BangoTriggerLogic
 {
@@ -57,6 +57,10 @@ namespace BangoTriggerLogic
 		StartDeactivation,
 		/** Deactivating, met, with a Timeout timer: back to Active. */
 		CancelDeactivation,
+		/** Undetermined and met: activate at once (no timer), as the initial state. */
+		SettleActivated,
+		/** Undetermined and not met: deactivate at once (no timer), as the initial state. */
+		SettleDeactivated,
 	};
 
 	EStep NextStep(EBangoTriggerState State, bool bRuleMet, EBangoTriggerTimerMode ActivationMode, EBangoTriggerTimerMode DeactivationMode);

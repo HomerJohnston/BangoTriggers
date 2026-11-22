@@ -72,6 +72,8 @@ namespace BangoTriggerLogic
 	{
 		switch (State)
 		{
+		case EBangoTriggerState::Undetermined:
+			return bRuleMet ? EStep::SettleActivated : EStep::SettleDeactivated;
 		case EBangoTriggerState::Idle:
 			return bRuleMet ? EStep::StartActivation : EStep::None;
 		case EBangoTriggerState::Activating:

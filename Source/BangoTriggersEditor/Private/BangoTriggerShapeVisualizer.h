@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "ComponentVisualizer.h"
 
-class ABangoTrigger;
+class UBangoTriggerComponent;
 struct FBangoTriggerRegion;
 struct FBangoAreaRegion;
 
@@ -44,8 +44,8 @@ struct HBangoRegionProxy : public HComponentVisProxy
 };
 
 /**
- * Edits a Bango trigger's regions in the level viewport (spec section 12). Select the trigger to see every region's
- * handles:
+ * Edits a Bango trigger component's regions in the level viewport (spec section 12). Select its actor to see every
+ * region's handles:
  * - Every region: a centre handle; drag it with the gizmo to move the region (the rotate gizmo turns a box, capsule or
  *   area).
  * - Area polygons: click a point to move it (only X and Y); Delete removes it (3 stay). Right-click a point: Add Point
@@ -72,7 +72,7 @@ public:
 private:
 	using EKind = HBangoRegionProxy::EKind;
 
-	ABangoTrigger* GetEditedTrigger() const;
+	UBangoTriggerComponent* GetEditedTrigger() const;
 	/** The selected region, if it's still there. */
 	FBangoTriggerRegion* GetSelectedRegion() const;
 	/** The selected region, if it's still there and is an area. */
@@ -84,14 +84,14 @@ private:
 	void ClearSelection();
 
 	/** Call after changing the trigger's regions: tells the editor, and redraws. Interactive while dragging. */
-	void EndChange(ABangoTrigger* Trigger, bool bInteractive) const;
+	void EndChange(UBangoTriggerComponent* Trigger, bool bInteractive) const;
 
 	// Dragging
-	void MoveCentre(ABangoTrigger* Trigger, FBangoTriggerRegion& Region, const FVector& Delta);
-	void TurnRegion(ABangoTrigger* Trigger, FBangoTriggerRegion& Region, const FRotator& Delta);
-	void MovePoint(ABangoTrigger* Trigger, FBangoAreaRegion& Area, const FVector& Delta);
-	void MoveSizeHandle(ABangoTrigger* Trigger, FBangoAreaRegion& Area, const FVector& Delta);
-	void MoveRotateHandle(ABangoTrigger* Trigger, FBangoAreaRegion& Area, const FVector& Delta);
+	void MoveCentre(UBangoTriggerComponent* Trigger, FBangoTriggerRegion& Region, const FVector& Delta);
+	void TurnRegion(UBangoTriggerComponent* Trigger, FBangoTriggerRegion& Region, const FRotator& Delta);
+	void MovePoint(UBangoTriggerComponent* Trigger, FBangoAreaRegion& Area, const FVector& Delta);
+	void MoveSizeHandle(UBangoTriggerComponent* Trigger, FBangoAreaRegion& Area, const FVector& Delta);
+	void MoveRotateHandle(UBangoTriggerComponent* Trigger, FBangoAreaRegion& Area, const FVector& Delta);
 
 	// Menu actions
 	void InsertPoint(int32 Index, const FVector& WorldLocation);

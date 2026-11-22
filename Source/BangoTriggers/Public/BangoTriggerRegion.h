@@ -13,8 +13,10 @@ struct FBangoTriggerLine
 };
 
 /**
- * Part of where a trigger is: "where" (spec section 3). Placed relative to the trigger, so it moves, turns and scales
- * with it. A trigger's Regions list holds these as instanced structs; game modules add their own by subclassing.
+ * Part of where a trigger is: "where" (spec section 3). Placed relative to the trigger's anchor, its actor's transform
+ * (UBangoTriggerComponent::GetAnchorTransform), so it moves, turns and scales with the actor. "The trigger's" location,
+ * rotation, scale or local space below all mean the anchor's. A trigger's Regions list holds these as instanced
+ * structs; game modules add their own by subclassing.
  */
 USTRUCT()
 struct BANGOTRIGGERS_API FBangoTriggerRegion
@@ -23,7 +25,7 @@ struct BANGOTRIGGERS_API FBangoTriggerRegion
 
 	virtual ~FBangoTriggerRegion() = default;
 
-	/** True if Location (a world location) is inside. TriggerTransform is the trigger's. */
+	/** True if Location (a world location) is inside. TriggerTransform is the anchor. */
 	virtual bool IsInside(const FTransform& TriggerTransform, const FVector& Location) const { return false; }
 
 	/** Its world-space bounds, for the editor. */

@@ -4,7 +4,7 @@
 #include "Templates/SubclassOf.h"
 #include "BangoActivatorSource.generated.h"
 
-class ABangoTrigger;
+class UBangoTriggerComponent;
 
 /**
  * Where a trigger gets its actors from: "who" (spec section 2). A trigger's Sources list holds these as instanced
@@ -18,10 +18,10 @@ struct BANGOTRIGGERS_API FBangoActivatorSource
 	virtual ~FBangoActivatorSource() = default;
 
 	/**
-	 * Adds this source's actors to OutActors. It may add duplicates, the trigger itself or invalid actors: the trigger
-	 * removes them.
+	 * Adds this source's actors to OutActors. It may add duplicates, the trigger's own actor or invalid actors: the
+	 * trigger removes them.
 	 */
-	virtual void Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const {}
+	virtual void Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const {}
 };
 
 /** Every actor of the chosen classes, or their subclasses. */
@@ -33,7 +33,7 @@ struct BANGOTRIGGERS_API FBangoActorClassSource : public FBangoActivatorSource
 	UPROPERTY(EditAnywhere, Category = "Source")
 	TArray<TSubclassOf<AActor>> Classes;
 
-	virtual void Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const override;
+	virtual void Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const override;
 };
 
 /** The actors with these Bango IDs, looked up in the Bango registry. IDs not registered yet give nothing. */
@@ -46,7 +46,7 @@ struct BANGOTRIGGERS_API FBangoIDsSource : public FBangoActivatorSource
 	UPROPERTY(EditAnywhere, Category = "Source")
 	TArray<FString> Names;
 
-	virtual void Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const override;
+	virtual void Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const override;
 };
 
 /** Every pawn controlled by a player (on a client, only the ones it knows the controllers of: its own). */
@@ -55,7 +55,7 @@ struct BANGOTRIGGERS_API FBangoPlayersSource : public FBangoActivatorSource
 {
 	GENERATED_BODY()
 
-	virtual void Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const override;
+	virtual void Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const override;
 };
 
 /** The pawns of this machine's local players (split-screen: several; on a server, only the host's own). */
@@ -64,5 +64,5 @@ struct BANGOTRIGGERS_API FBangoLocalPlayersSource : public FBangoActivatorSource
 {
 	GENERATED_BODY()
 
-	virtual void Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const override;
+	virtual void Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const override;
 };

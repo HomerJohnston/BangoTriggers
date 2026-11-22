@@ -17,7 +17,7 @@ public class BangoTriggers : ModuleRules
 			}
 		);
 
-		// The area trigger's shape drawing (scene proxy).
+		// The regions' drawing in the editor (a scene proxy).
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{

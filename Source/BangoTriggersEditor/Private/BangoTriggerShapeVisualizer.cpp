@@ -1,8 +1,7 @@
 #include "BangoTriggerShapeVisualizer.h"
 
-#include "BangoTrigger.h"
+#include "BangoTriggerComponent.h"
 #include "BangoTriggerRegion.h"
-#include "BangoTriggerShapeComponent.h"
 #include "CanvasTypes.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
@@ -41,15 +40,15 @@ namespace
 	};
 	constexpr int32 NumSizeHandles = UE_ARRAY_COUNT(SizeHandleDirs);
 
-	ABangoTrigger* GetTrigger(const UActorComponent* Component)
+	UBangoTriggerComponent* GetTrigger(const UActorComponent* Component)
 	{
-		const UBangoTriggerShapeComponent* Shape = Cast<UBangoTriggerShapeComponent>(Component);
-		return Shape ? Shape->GetTrigger() : nullptr;
+		// The visualizer's own pointer is const, but editing changes the component.
+		return const_cast<UBangoTriggerComponent*>(Cast<UBangoTriggerComponent>(Component));
 	}
 
 	FProperty* GetRegionsProperty()
 	{
-		static FProperty* Property = FindFProperty<FProperty>(ABangoTrigger::StaticClass(), GET_MEMBER_NAME_CHECKED(ABangoTrigger, Regions));
+		static FProperty* Property = FindFProperty<FProperty>(UBangoTriggerComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UBangoTriggerComponent, Regions));
 		return Property;
 	}
 
@@ -82,19 +81,19 @@ namespace
 namespace
 {
 	template<typename T>
-	T* GetRegionAs(ABangoTrigger* Trigger, int32 Index)
+	T* GetRegionAs(UBangoTriggerComponent* Trigger, int32 Index)
 	{
 		return (Trigger && Trigger->Regions.IsValidIndex(Index)) ? Trigger->Regions[Index].GetMutablePtr<T>() : nullptr;
 	}
 
 	template<typename T>
-	const T* GetRegionAs(const ABangoTrigger* Trigger, int32 Index)
+	const T* GetRegionAs(const UBangoTriggerComponent* Trigger, int32 Index)
 	{
 		return (Trigger && Trigger->Regions.IsValidIndex(Index)) ? Trigger->Regions[Index].GetPtr<T>() : nullptr;
 	}
 
 	/** The region's own rotation as a quaternion relative to the trigger, for regions that have one. */
-	bool GetRelativeRotation(const ABangoTrigger* Trigger, int32 Index, FQuat& OutRotation)
+	bool GetRelativeRotation(const UBangoTriggerComponent* Trigger, int32 Index, FQuat& OutRotation)
 	{
 		if (const FBangoAreaRegion* Area = GetRegionAs<FBangoAreaRegion>(Trigger, Index))
 		{
@@ -119,12 +118,12 @@ namespace
 
 void FBangoTriggerShapeVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
-	const ABangoTrigger* Trigger = GetTrigger(Component);
+	const UBangoTriggerComponent* Trigger = GetTrigger(Component);
 	if (!Trigger)
 	{
 		return;
 	}
-	const FTransform& Transform = Trigger->GetActorTransform();
+	const FTransform Transform = Trigger->GetAnchorTransform();
 	const bool bEditingThis = GetEditedComponent() == Component;
 
 	for (int32 RegionIndex = 0; RegionIndex < Trigger->Regions.Num(); ++RegionIndex)
@@ -222,7 +221,7 @@ UActorComponent* FBangoTriggerShapeVisualizer::GetEditedComponent() const
 	return ShapePropertyPath.GetComponent();
 }
 
-ABangoTrigger* FBangoTriggerShapeVisualizer::GetEditedTrigger() const
+UBangoTriggerComponent* FBangoTriggerShapeVisualizer::GetEditedTrigger() const
 {
 	return GetTrigger(GetEditedComponent());
 }
@@ -285,7 +284,7 @@ bool FBangoTriggerShapeVisualizer::VisProxyHandleClick(FEditorViewportClient* In
 		return false;
 	}
 	const HBangoRegionProxy* Proxy = static_cast<HBangoRegionProxy*>(VisProxy);
-	const ABangoTrigger* Trigger = GetTrigger(Proxy->Component.Get());
+	const UBangoTriggerComponent* Trigger = GetTrigger(Proxy->Component.Get());
 	if (!Trigger || !Trigger->Regions.IsValidIndex(Proxy->Region))
 	{
 		return false;
@@ -305,7 +304,7 @@ bool FBangoTriggerShapeVisualizer::VisProxyHandleClick(FEditorViewportClient* In
 		// The point on the edge nearest the click's ray.
 		if (const FBangoAreaRegion* Area = GetRegionAs<FBangoAreaRegion>(Trigger, Proxy->Region); Area && Area->Points.IsValidIndex(Proxy->Index))
 		{
-			const FTransform& Transform = Trigger->GetActorTransform();
+			const FTransform Transform = Trigger->GetAnchorTransform();
 			const FVector A = Area->LocalToWorld(Transform, Area->Points[Proxy->Index]);
 			const FVector B = Area->LocalToWorld(Transform, Area->Points[(Proxy->Index + 1) % Area->Points.Num()]);
 			FVector OnEdge, OnRay;
@@ -331,12 +330,12 @@ void FBangoTriggerShapeVisualizer::EndEditing()
 
 bool FBangoTriggerShapeVisualizer::GetWidgetLocation(const FEditorViewportClient* ViewportClient, FVector& OutLocation) const
 {
-	const ABangoTrigger* Trigger = GetEditedTrigger();
+	const UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	if (!Trigger || !HasSelection())
 	{
 		return false;
 	}
-	const FTransform& Transform = Trigger->GetActorTransform();
+	const FTransform Transform = Trigger->GetAnchorTransform();
 	const FBangoAreaRegion* Area = GetSelectedArea();
 	switch (SelectedKind)
 	{
@@ -361,7 +360,7 @@ bool FBangoTriggerShapeVisualizer::GetWidgetLocation(const FEditorViewportClient
 
 bool FBangoTriggerShapeVisualizer::GetCustomInputCoordinateSystem(const FEditorViewportClient* ViewportClient, FMatrix& OutMatrix) const
 {
-	const ABangoTrigger* Trigger = GetEditedTrigger();
+	const UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	if (!Trigger || !ViewportClient || ViewportClient->GetWidgetCoordSystemSpace() != COORD_Local || !HasSelection())
 	{
 		return false;
@@ -370,22 +369,22 @@ bool FBangoTriggerShapeVisualizer::GetCustomInputCoordinateSystem(const FEditorV
 	if (!GetRelativeRotation(Trigger, SelectedRegion, Relative))
 	{
 		// A sphere: the trigger's own rotation.
-		OutMatrix = FRotationMatrix(Trigger->GetActorRotation());
+		OutMatrix = FRotationMatrix(Trigger->GetAnchorTransform().Rotator());
 		return true;
 	}
 	if (GetSelectedArea())
 	{
 		// An area only turns with yaw.
-		OutMatrix = FRotationMatrix(FRotator(0.0, GetSelectedArea()->GetWorldYaw(Trigger->GetActorTransform()), 0.0));
+		OutMatrix = FRotationMatrix(FRotator(0.0, GetSelectedArea()->GetWorldYaw(Trigger->GetAnchorTransform()), 0.0));
 		return true;
 	}
-	OutMatrix = FRotationMatrix((Trigger->GetActorQuat() * Relative).Rotator());
+	OutMatrix = FRotationMatrix((Trigger->GetAnchorTransform().GetRotation() * Relative).Rotator());
 	return true;
 }
 
 bool FBangoTriggerShapeVisualizer::HandleInputDelta(FEditorViewportClient* ViewportClient, FViewport* Viewport, FVector& DeltaTranslate, FRotator& DeltaRotate, FVector& DeltaScale)
 {
-	ABangoTrigger* Trigger = GetEditedTrigger();
+	UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	if (!Trigger || !HasSelection())
 	{
 		return false;
@@ -444,7 +443,7 @@ void FBangoTriggerShapeVisualizer::TrackingStopped(FEditorViewportClient* InView
 {
 	if (bDragChanged)
 	{
-		if (ABangoTrigger* Trigger = GetEditedTrigger())
+		if (UBangoTriggerComponent* Trigger = GetEditedTrigger())
 		{
 			EndChange(Trigger, false);
 		}
@@ -453,9 +452,9 @@ void FBangoTriggerShapeVisualizer::TrackingStopped(FEditorViewportClient* InView
 	bRotateDragging = false;
 }
 
-void FBangoTriggerShapeVisualizer::MoveCentre(ABangoTrigger* Trigger, FBangoTriggerRegion& Region, const FVector& Delta)
+void FBangoTriggerShapeVisualizer::MoveCentre(UBangoTriggerComponent* Trigger, FBangoTriggerRegion& Region, const FVector& Delta)
 {
-	const FTransform& Transform = Trigger->GetActorTransform();
+	const FTransform Transform = Trigger->GetAnchorTransform();
 	Trigger->Modify();
 	if (FBangoAreaRegion* Area = GetSelectedArea())
 	{
@@ -484,7 +483,7 @@ void FBangoTriggerShapeVisualizer::MoveCentre(ABangoTrigger* Trigger, FBangoTrig
 	EndChange(Trigger, true);
 }
 
-void FBangoTriggerShapeVisualizer::TurnRegion(ABangoTrigger* Trigger, FBangoTriggerRegion& Region, const FRotator& Delta)
+void FBangoTriggerShapeVisualizer::TurnRegion(UBangoTriggerComponent* Trigger, FBangoTriggerRegion& Region, const FRotator& Delta)
 {
 	Trigger->Modify();
 	if (FBangoAreaRegion* Area = GetSelectedArea())
@@ -494,7 +493,7 @@ void FBangoTriggerShapeVisualizer::TurnRegion(ABangoTrigger* Trigger, FBangoTrig
 	else
 	{
 		// The gizmo's delta is in world space: apply it to the region's world rotation, then take the trigger's back off.
-		const FQuat TriggerRotation = Trigger->GetActorQuat();
+		const FQuat TriggerRotation = Trigger->GetAnchorTransform().GetRotation();
 		auto Turn = [&](FRotator& Rotation)
 		{
 			const FQuat World = TriggerRotation * Rotation.Quaternion();
@@ -517,9 +516,9 @@ void FBangoTriggerShapeVisualizer::TurnRegion(ABangoTrigger* Trigger, FBangoTrig
 	EndChange(Trigger, true);
 }
 
-void FBangoTriggerShapeVisualizer::MovePoint(ABangoTrigger* Trigger, FBangoAreaRegion& Area, const FVector& Delta)
+void FBangoTriggerShapeVisualizer::MovePoint(UBangoTriggerComponent* Trigger, FBangoAreaRegion& Area, const FVector& Delta)
 {
-	const FTransform& Transform = Trigger->GetActorTransform();
+	const FTransform Transform = Trigger->GetAnchorTransform();
 	Trigger->Modify();
 	const FVector Current = Area.LocalToWorld(Transform, Area.Points[SelectedIndex]);
 	Area.Points[SelectedIndex] = Area.WorldToLocal(Transform, Current + FVector(Delta.X, Delta.Y, 0.0));
@@ -527,9 +526,9 @@ void FBangoTriggerShapeVisualizer::MovePoint(ABangoTrigger* Trigger, FBangoAreaR
 	EndChange(Trigger, true);
 }
 
-void FBangoTriggerShapeVisualizer::MoveSizeHandle(ABangoTrigger* Trigger, FBangoAreaRegion& Area, const FVector& Delta)
+void FBangoTriggerShapeVisualizer::MoveSizeHandle(UBangoTriggerComponent* Trigger, FBangoAreaRegion& Area, const FVector& Delta)
 {
-	const FTransform& Transform = Trigger->GetActorTransform();
+	const FTransform Transform = Trigger->GetAnchorTransform();
 	const FVector Scale = Transform.GetScale3D();
 	if (FMath::Abs(Scale.X) < UE_KINDA_SMALL_NUMBER || FMath::Abs(Scale.Y) < UE_KINDA_SMALL_NUMBER)
 	{
@@ -565,9 +564,9 @@ void FBangoTriggerShapeVisualizer::MoveSizeHandle(ABangoTrigger* Trigger, FBango
 	EndChange(Trigger, true);
 }
 
-void FBangoTriggerShapeVisualizer::MoveRotateHandle(ABangoTrigger* Trigger, FBangoAreaRegion& Area, const FVector& Delta)
+void FBangoTriggerShapeVisualizer::MoveRotateHandle(UBangoTriggerComponent* Trigger, FBangoAreaRegion& Area, const FVector& Delta)
 {
-	const FTransform& Transform = Trigger->GetActorTransform();
+	const FTransform Transform = Trigger->GetAnchorTransform();
 	const FVector Centre = Area.GetCentre(Transform);
 	if (!bRotateDragging)
 	{
@@ -721,7 +720,7 @@ TSharedPtr<SWidget> FBangoTriggerShapeVisualizer::GenerateContextMenu() const
 
 // ---- Changes ----
 
-void FBangoTriggerShapeVisualizer::EndChange(ABangoTrigger* Trigger, bool bInteractive) const
+void FBangoTriggerShapeVisualizer::EndChange(UBangoTriggerComponent* Trigger, bool bInteractive) const
 {
 	if (!bInteractive)
 	{
@@ -729,7 +728,7 @@ void FBangoTriggerShapeVisualizer::EndChange(ABangoTrigger* Trigger, bool bInter
 		FPropertyChangedEvent ChangedEvent(GetRegionsProperty(), EPropertyChangeType::ValueSet);
 		Trigger->PostEditChangeProperty(ChangedEvent);
 	}
-	Trigger->ShapeChanged();
+	Trigger->RegionsChanged();
 	if (GEditor)
 	{
 		GEditor->RedrawLevelEditingViewports(true);
@@ -738,7 +737,7 @@ void FBangoTriggerShapeVisualizer::EndChange(ABangoTrigger* Trigger, bool bInter
 
 void FBangoTriggerShapeVisualizer::InsertPoint(int32 Index, const FVector& WorldLocation)
 {
-	ABangoTrigger* Trigger = GetEditedTrigger();
+	UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	FBangoAreaRegion* Area = GetSelectedArea();
 	if (!Trigger || !Area || Area->Shape != EBangoAreaShape::Polygon)
 	{
@@ -747,7 +746,7 @@ void FBangoTriggerShapeVisualizer::InsertPoint(int32 Index, const FVector& World
 	const FScopedTransaction Transaction(LOCTEXT("AddAreaPoint", "Add Area Point"));
 	Trigger->Modify();
 	Index = FMath::Clamp(Index, 0, Area->Points.Num());
-	Area->Points.Insert(Area->WorldToLocal(Trigger->GetActorTransform(), WorldLocation), Index);
+	Area->Points.Insert(Area->WorldToLocal(Trigger->GetAnchorTransform(), WorldLocation), Index);
 	SelectedKind = EKind::Point;
 	SelectedIndex = Index;
 	EndChange(Trigger, false);
@@ -755,7 +754,7 @@ void FBangoTriggerShapeVisualizer::InsertPoint(int32 Index, const FVector& World
 
 void FBangoTriggerShapeVisualizer::AddPointAfterSelected()
 {
-	const ABangoTrigger* Trigger = GetEditedTrigger();
+	const UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	const FBangoAreaRegion* Area = GetSelectedPolygon(false);
 	if (!Trigger || !Area)
 	{
@@ -763,7 +762,7 @@ void FBangoTriggerShapeVisualizer::AddPointAfterSelected()
 	}
 	const int32 Num = Area->Points.Num();
 	const FVector2D Middle = (Area->Points[SelectedIndex] + Area->Points[(SelectedIndex + 1) % Num]) * 0.5;
-	InsertPoint(SelectedIndex + 1, Area->LocalToWorld(Trigger->GetActorTransform(), Middle));
+	InsertPoint(SelectedIndex + 1, Area->LocalToWorld(Trigger->GetAnchorTransform(), Middle));
 }
 
 bool FBangoTriggerShapeVisualizer::CanDeleteSelectedPoint() const
@@ -774,7 +773,7 @@ bool FBangoTriggerShapeVisualizer::CanDeleteSelectedPoint() const
 
 void FBangoTriggerShapeVisualizer::DeleteSelectedPoint()
 {
-	ABangoTrigger* Trigger = GetEditedTrigger();
+	UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	FBangoAreaRegion* Area = GetSelectedPolygon(false);
 	if (!Trigger || !CanDeleteSelectedPoint())
 	{
@@ -829,7 +828,7 @@ bool FBangoTriggerShapeVisualizer::CanResetRotation() const
 
 void FBangoTriggerShapeVisualizer::ResetRotation()
 {
-	ABangoTrigger* Trigger = GetEditedTrigger();
+	UBangoTriggerComponent* Trigger = GetEditedTrigger();
 	if (!Trigger || !CanResetRotation())
 	{
 		return;

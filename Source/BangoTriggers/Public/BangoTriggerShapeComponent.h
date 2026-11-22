@@ -4,14 +4,15 @@
 #include "Components/PrimitiveComponent.h"
 #include "BangoTriggerShapeComponent.generated.h"
 
-class ABangoTrigger;
+class UBangoTriggerComponent;
 struct FBangoTriggerLine;
 
 /**
- * Draws its ABangoTrigger's regions in the editor (hidden in game, no collision). The trigger holds the regions; the
- * editor's region handles belong to this component.
+ * Draws a Bango trigger component's regions in editor worlds. Made by the trigger component itself, on the same actor,
+ * as a transient visualization component (like a scene component's editor sprite): it's never saved, and never made
+ * in game. No collision.
  */
-UCLASS(ClassGroup = (Bango), HideCategories = (Collision, Physics, Lighting, Rendering, Mobile, Navigation, HLOD, Cooking, LOD, MaterialParameters, TextureStreaming))
+UCLASS(ClassGroup = (Bango), NotBlueprintable, HideCategories = (Collision, Physics, Lighting, Rendering, Mobile, Navigation, HLOD, Cooking, LOD, MaterialParameters, TextureStreaming))
 class BANGOTRIGGERS_API UBangoTriggerShapeComponent : public UPrimitiveComponent
 {
 	GENERATED_BODY()
@@ -19,12 +20,10 @@ class BANGOTRIGGERS_API UBangoTriggerShapeComponent : public UPrimitiveComponent
 public:
 	UBangoTriggerShapeComponent();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shape")
-	FLinearColor ShapeColor = FLinearColor(1.0f, 0.55f, 0.1f);
+	void SetTrigger(const UBangoTriggerComponent* InTrigger) { Trigger = InTrigger; }
+	const UBangoTriggerComponent* GetTrigger() const { return Trigger.Get(); }
 
-	ABangoTrigger* GetTrigger() const;
-
-	/** Every region's lines, in world space. Empty if the owner isn't a trigger. */
+	/** Every region's lines, in world space. Empty without a trigger. */
 	void GetLines(TArray<FBangoTriggerLine>& OutLines) const;
 
 	/** Rebuilds the drawing and bounds. */
@@ -36,4 +35,7 @@ public:
 
 protected:
 	virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) override;
+
+private:
+	TWeakObjectPtr<const UBangoTriggerComponent> Trigger;
 };

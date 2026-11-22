@@ -15,8 +15,8 @@ public:
 	/** Owner names it, in errors and the debugger ("Trigger_1 (inline script)"). Shows any error; a script that doesn't compile never runs. */
 	void Prepare(const FBangoInlineScript& InScript, const UObject* InOwner);
 
-	/** Starts the script with Args (its "Activation" inputs, in order), if there is one and it compiled. */
-	void Spawn(UBangoScriptSubsystem& Scripts, const TArray<FBangoValue>& Args) const;
+	/** Starts the script with Args (its signature's inputs, in order), if there is one and it compiled. Invalid if it didn't start. */
+	FBangoScriptHandle Spawn(UBangoScriptSubsystem& Scripts, const TArray<FBangoValue>& Args) const;
 
 private:
 	FBangoInlineScript Script;

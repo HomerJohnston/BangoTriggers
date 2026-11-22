@@ -1,6 +1,6 @@
 #include "BangoTriggerSubsystem.h"
 
-#include "BangoTrigger.h"
+#include "BangoTriggerComponent.h"
 #include "Engine/World.h"
 
 UBangoTriggerSubsystem* UBangoTriggerSubsystem::Get(const UObject* WorldContext)
@@ -9,7 +9,7 @@ UBangoTriggerSubsystem* UBangoTriggerSubsystem::Get(const UObject* WorldContext)
 	return World ? World->GetSubsystem<UBangoTriggerSubsystem>() : nullptr;
 }
 
-void UBangoTriggerSubsystem::RegisterTrigger(ABangoTrigger* Trigger)
+void UBangoTriggerSubsystem::RegisterTrigger(UBangoTriggerComponent* Trigger)
 {
 	if (Trigger)
 	{
@@ -17,10 +17,10 @@ void UBangoTriggerSubsystem::RegisterTrigger(ABangoTrigger* Trigger)
 	}
 }
 
-void UBangoTriggerSubsystem::UnregisterTrigger(ABangoTrigger* Trigger)
+void UBangoTriggerSubsystem::UnregisterTrigger(UBangoTriggerComponent* Trigger)
 {
 	// Only cleared here: Tick may be walking the list, and skips (then removes) cleared entries.
-	for (TWeakObjectPtr<ABangoTrigger>& Entry : Triggers)
+	for (TWeakObjectPtr<UBangoTriggerComponent>& Entry : Triggers)
 	{
 		if (Entry.Get() == Trigger)
 		{
@@ -44,13 +44,13 @@ void UBangoTriggerSubsystem::Tick(float DeltaTime)
 	const int32 Num = Triggers.Num();
 	for (int32 Index = 0; Index < Num && Index < Triggers.Num(); ++Index)
 	{
-		if (ABangoTrigger* Trigger = Triggers[Index].Get())
+		if (UBangoTriggerComponent* Trigger = Triggers[Index].Get())
 		{
 			Trigger->TickTrigger(Now);
 		}
 	}
 
-	Triggers.RemoveAll([](const TWeakObjectPtr<ABangoTrigger>& Entry) { return !Entry.IsValid(); });
+	Triggers.RemoveAll([](const TWeakObjectPtr<UBangoTriggerComponent>& Entry) { return !Entry.IsValid(); });
 }
 
 TStatId UBangoTriggerSubsystem::GetStatId() const

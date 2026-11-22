@@ -1,8 +1,10 @@
 # Bango Triggers Spec (draft)
 
-A **Bango Trigger** is an actor placed in a level that watches for actors (**who**), in places (**where**), that pass a **Condition**. When its rule is met it **activates**; when the rule stops being met it **deactivates**. Along the way it reports each actor that starts or stops counting. Each of these runs a Bango inline script and fires a Blueprint event.
+A **Bango Trigger** watches for actors (**who**), in places (**where**), that pass a **Condition**. When its rule is met it **activates**; when the rule stops being met it **deactivates**. Along the way it reports each actor that starts or stops counting. Each of these runs a Bango inline script and fires a Blueprint event.
 
-There is one trigger class, `ABangoTrigger`, configured entirely by its settings. A new one starts as "a player enters this area": one **Players** source and one square **Area** region. It's made for a 3D isometric game and inspired by Arma's triggers.
+A trigger is a component, **`UBangoTriggerComponent`** (**Bango Trigger** in the Add Component list), configured entirely by its settings. It goes on the thing it's about: a door that opens when a player comes near has a trigger component, whose scripts open and close the door (`self`). An actor can have several. For places that aren't any one thing ("a player reaches the exit"), **`ABangoTrigger`** is an actor with nothing but a trigger component and an editor icon. A new trigger starts as "a player enters this area": one **Players** source and one square **Area** region. It's made for a 3D isometric game and inspired by Arma's triggers.
+
+It's a plain actor component, not a scene component, so moving its actor costs it nothing: it reads where its actor is only when it checks (section 3). Its scripts belong to its actor, which is `self` in them; `_trigger` is the component (section 8).
 
 Bango Triggers depends on the **BangoScripts** plugin (`Plugins/BangoScripts/Docs/BangoSpec.md`) for conditions, scripts, inputs signatures and Bango IDs.
 
@@ -30,7 +32,7 @@ A trigger with **no sources** has no actors: its Condition is watched once, and 
 
 ## 2. Sources: who
 
-**Sources** is a list. Each source returns actors; the gathered set is all of them together, each actor once, in source order (and each source's own order). The trigger itself, and actors being destroyed, are never gathered.
+**Sources** is a list. Each source returns actors; the gathered set is all of them together, each actor once, in source order (and each source's own order). The trigger's own actor, and actors being destroyed, are never gathered: a door doesn't open for itself.
 
 Built-in sources:
 
@@ -49,7 +51,7 @@ Sources are gathered fresh at each check. (Sharing one source's results between 
 
 ## 3. Regions: where
 
-**Regions** is a list of shapes, placed relative to the trigger: they move, turn and scale with it. An actor is **inside the trigger** if its **location** (`GetActorLocation()`, its centre point, never its collision) is inside **any** region.
+**Regions** is a list of shapes, placed relative to the trigger's **anchor**, its actor's transform (its root component's): they move, turn and scale with the actor. Below, "the trigger's" location, rotation or scale means the anchor's. A trigger whose actor has no root component, but has regions, reports an error and doesn't run. The anchor is always the actor's root: a trigger can't follow one of its actor's parts (a door that swings on a hinge should have its trigger on an actor, or a root, that doesn't). An actor is **inside the trigger** if its **location** (`GetActorLocation()`, its centre point, never its collision) is inside **any** region.
 
 Built-in regions:
 
@@ -149,6 +151,20 @@ For each change, the order is always: **Out, In, then Activated or Deactivated.*
 
 The trigger activates only on a change from not met to met: someone standing in the area doesn't activate it again and again.
 
+### Start State
+**Start State** says what the trigger is when play begins:
+- **Deactivated** (default): it starts idle. Nothing runs until the Rule is first met, so if it isn't met at the start, On Deactivated never runs.
+- **Undetermined**: for things whose own starting state isn't known, like a light whose Blueprint picks whether it starts on, switched by the trigger. The trigger starts **Undetermined** (neither active nor idle: **Is Trigger Active** is false) and **settles** at its first check, which happens on the first frame of play, whatever the Poll Interval:
+  - **Rule met**: the actors there run **On Activator In**, then the trigger activates at once: **On Activated** runs, `_activators` being those actors. It counts as an activation (Max Activations).
+  - **Rule not met**: it deactivates at once: **On Deactivated** runs, `_activators` empty. The light goes off.
+  - Either way the timers are skipped: it's meant to be in its right state from the start, not to correct itself after a timer. From then on the trigger works as usual, timers included.
+  - Its scripts get `_initial` true, and its Blueprint events **Initial** true, for this first state only (section 8), so a door that starts open can snap open instead of playing its opening animation and sound.
+  - A trigger that starts disabled stays Undetermined until it's enabled, then settles at its next check.
+  - **Reset Trigger** goes back to Undetermined, and it settles again at its next check.
+  - **Force Activate** and **Force Deactivate** work on an Undetermined trigger too, but aren't its initial state (`_initial` is false).
+
+Settling happens at the first check, not in BeginPlay itself, because other actors may not have begun play yet. Even so, a player's pawn may not exist on the first frame: a "player is near" trigger then settles as Deactivated and activates a moment later.
+
 ### Max Activations
 **Max Activations** (default 0, no limit) limits how many times it can activate. After its last activation it still runs as usual (In, Out, and its deactivation), then it's **Finished**: it stops checking and runs nothing more.
 
@@ -156,16 +172,41 @@ The trigger activates only on a change from not met to met: someone standing in 
 
 ## 8. Script inputs
 
-Every script can read these inputs directly, without an `#inputs` line (they're inputs signatures, BangoSpec section 15). `ABangoTrigger`'s constructor registers the signatures and gives them to the scripts, so the editor knows them (autocomplete and checking).
+Every script can read these inputs directly, without an `#inputs` line (they're inputs signatures, BangoSpec section 15). `UBangoTriggerComponent`'s constructor registers the signatures and gives them to the scripts, so the editor knows them (autocomplete and checking).
 
-**On Activator In, On Activator Out, On Activated, On Deactivated** (the "Activation" signature):
+The scripts belong to the trigger's actor: **`self`** is the actor (the door). **`_trigger`** is the component itself (BangoSpec section 4, Entity IDs: components). It's an entity like any other, but a component without a place in the world, so commands that place or move things (`SetPos`, `SetHidden`) don't work on it. **`call`** does: `_trigger call SetTriggerEnabled(false);` (section 11). A trigger made by its actor's class, Blueprint or level is the same entity each time (`door_1|Trigger`); one added while playing gets an Automatic ID.
+
+**On Activator In, On Activator Out** (the "Activator" signature), **On Activated** ("Activated") and **On Deactivated** ("Deactivated"):
 
 | Input | Type | Value |
 |---|---|---|
-| `_trigger` | `entity` | The trigger itself, if it has a Bango ID; otherwise `nil`. |
+| `_trigger` | `entity` | This trigger: the component. Its actor is `self`. |
 | `_activators` | `entity[]` | The actors this event is about (section 7). A destroyed actor is `nil`. |
 | `_actual` | `entity[]` | The actual set after the change, in the order they joined. |
 | `_potential` | `entity[]` | The potential set. |
+| `_deactivatedScriptHandle` | `int` | On Activated only: the id of the last On Deactivated script, if it's still running; otherwise `0`. |
+| `_activatedScriptHandle` | `int` | On Deactivated only: the id of the last On Activated script, if it's still running; otherwise `0`. |
+| `_initial` | `bool` | On Activated and On Deactivated only: `true` when an Undetermined trigger is settling into its first state (section 7, Start State), as play begins or after a reset; otherwise `false`. |
+
+The two handles let On Activated and On Deactivated, which may be running latent commands, stop each other: `Abort(_deactivatedScriptHandle);` (BangoSpec section 7). A handle is never `nil`, because `Abort(nil)` would stop the script calling it; `Abort(0)` does nothing, so no check is needed. The handle is that of the script started by the trigger's most recent other event. The new script gets it as soon as it starts, before its first command runs.
+
+```
+// On Deactivated: stop the alarm loop On Activated started, then fade out.
+Abort(_activatedScriptHandle, true);
+self FadeOutAlarm();
+```
+
+```
+// On Activated, on a door whose trigger's Start State is Undetermined: open without fuss if it starts open.
+if (_initial)
+{
+	self SnapOpen();
+}
+else
+{
+	self Open();
+}
+```
 
 **Condition** (the "Condition" signature):
 
@@ -190,7 +231,7 @@ forEach (_a in _activators)
 {
 	if (IsNil(_a))
 	{
-		_trigger Say("Bye!");
+		self Say("Bye!");
 		continue;
 	}
 	_a RemoveStatus("Poisoned");
@@ -198,7 +239,23 @@ forEach (_a in _activators)
 ```
 
 - Use `Count(_actual)` for how many count.
-- For now, every actor a trigger uses is assumed to have a Bango ID. An actor without one is `nil` in these arrays; giving every actor an ID while the game runs is a job for BangoScripts (section 13).
+- Every actor in a game world is an entity, with or without a Bango ID component (BangoSpec section 4, Entity IDs), so no actor is `nil` in these arrays unless it's been destroyed.
+
+### Constants
+A trigger's **Constants** list holds values of its own, which **all its scripts and its Condition** can read as inputs, after the ones above. They're for values that differ from one trigger to the next and that several of its scripts share, kept in one place: a light trigger fading between `_red` and `_blue` in both On Activated and On Deactivated.
+
+```
+// On Activated:   self call FadeColor(_red, _blue, 2.0);
+// On Deactivated: self call FadeColor(_blue, _red, 2.0);
+```
+
+- Each is edited on **one row**, as a script variable is in the script editor's SCRIPT VARS list, with the same widgets (BangoSpec section 15, Value widgets): its **Name** (`_red`; it should start with `_`, like the built-in inputs), its **Type** (the type picker: every type a value can have, and an array of each), and its **Value**, typed as a graph node's field is: a string or text as plain words, anything else as code (`[1, 0, 0]`, `@lamp`, `[@a, @b]`, `true`), checked as it's typed. Empty is `nil`. Each is edited on its own: picking another type clears the value (as SCRIPT VARS does; `nil` stays), and never changes the name.
+- **An `entity`** is the one exception: its value is an **actor picker** (with the eyedropper), for an actor in the same level, so an actor without a Bango ID can be used. None is `nil`. An `entity[]` is typed like other arrays, with Bango IDs (`[@lamp1, @lamp2]`).
+- A **text** typed as plain words is `INVTEXT`: it isn't translated yet (that waits on BangoScripts gathering texts kept outside scripts).
+- They're the scripts' **instance inputs** (BangoSpec section 15, Instance inputs): the editor knows them as you type (autocomplete, colouring, errors, the SCRIPT INPUTS list), and follows them as they're edited, without the scripts being edited.
+- A name a built-in input has (`_trigger`, `_initial`, ...), or another constant's, is an error, shown as the error of each script that has that input (in the editor, and when it begins play) until it's renamed: a constant called `_initial` breaks On Activated and On Deactivated, whose input that is, but not the others. Rename it rather than rely on that.
+- Their values are worked out when the trigger begins play (`Bango::ParseFixedValue`, as a script variable's starting value is read), and never change while it runs: a picked actor's entity is the actor's then (its Bango ID, or the ID it's given). A value that can't be read is reported then, and is `nil`. A Condition that reads them isn't polled for them.
+- In C++, after changing `Constants` before it begins play, call `UpdateConstants()` so the scripts get the new list (it's done by itself when the trigger is made, loaded, edited, undone, pasted, and as it begins play). Each is an `FBangoTriggerConstant`: `Name`, `Type`, `Value` (the Bango text) and `Actor` (an `entity`'s).
 
 ---
 
@@ -235,7 +292,7 @@ struct FMyEnemiesSource : public FBangoActivatorSource
 {
 	GENERATED_BODY()
 
-	virtual void Gather(const ABangoTrigger& Trigger, TArray<AActor*>& OutActors) const override;
+	virtual void Gather(const UBangoTriggerComponent& Trigger, TArray<AActor*>& OutActors) const override;
 };
 ```
 
@@ -245,7 +302,7 @@ struct FMyConeRegion : public FBangoTriggerRegion
 {
 	GENERATED_BODY()
 
-	// Location in the world; TriggerTransform is the trigger's.
+	// Location in the world; TriggerTransform is the trigger's anchor (its actor's transform).
 	virtual bool IsInside(const FTransform& TriggerTransform, const FVector& Location) const override;
 	// For the editor: its bounds, the lines it's drawn with (world space), and where its centre handle is.
 	virtual FBox GetBounds(const FTransform& TriggerTransform) const override;
@@ -256,47 +313,52 @@ struct FMyConeRegion : public FBangoTriggerRegion
 
 A custom region gets a centre handle in the editor; moving it with the gizmo is only built in for the built-in regions.
 
-`Gather` may return duplicates, the trigger itself or invalid actors: the trigger removes them.
+`Gather` may return duplicates, the trigger's own actor or invalid actors: the trigger removes them.
 
 ---
 
 ## 11. Blueprint API
 
-Events (multicast delegates on the trigger), each fired just after its script starts, with the trigger and the same actors as `_activators` (destroyed ones as none):
-- **On Activator In**, **On Activator Out**, **On Activated**, **On Deactivated**.
+Events (multicast delegates on the trigger component), each fired just after its script starts, with the trigger component and the same actors as `_activators` (destroyed ones as none). In a door Blueprint they're the component's events in its event graph ("On Activated (DoorTrigger)"):
+- **On Activator In**, **On Activator Out**.
+- **On Activated**, **On Deactivated**: these also have **Initial**, as the scripts' `_initial` (section 7, Start State).
 
 Functions:
 - **Set Trigger Enabled** (bool), **Is Trigger Enabled**: a disabled trigger doesn't check, and its timers pause; it keeps its state. **Start Enabled** sets it when play begins.
-- **Get Trigger State**: Idle, Activating (Activation Timer running), Active, Deactivating (Deactivation Timer running) or Finished. **Is Trigger Active**: Active or Deactivating.
+- **Get Trigger State**: Undetermined (not settled yet, section 7), Idle, Activating (Activation Timer running), Active, Deactivating (Deactivation Timer running) or Finished. **Is Trigger Active**: Active or Deactivating.
 - **Get Activation Count**.
+- **Get Activated Script Handle**, **Get Deactivated Script Handle**: the last On Activated and On Deactivated scripts started (they may have ended since); for **Terminate Bango Script** or **Is Bango Script Running**. Invalid if none has started.
 - **Get Actual Activators**, **Get Potential Activators**, **Get Gathered Actors**: the sets from the last check.
 - **Force Activate**: activates now (counts as an activation) if it isn't active or finished; `_activators` is empty.
-- **Force Deactivate**: deactivates now if it's active.
-- **Reset Trigger**: back to Idle with no activations and empty sets. Nothing is run.
+- **Force Deactivate**: deactivates now if it's active or Undetermined.
+- **Reset Trigger**: back to its Start State (Idle, or Undetermined) with no activations and empty sets. Nothing is run now; an Undetermined trigger settles again at its next check.
+
+These are the component's own, so scripts can use them with `call` (`_trigger call ForceDeactivate();`). They're named apart from the engine's component **activation** (`Activate`, `Deactivate`, `Is Active`, **Auto Activate**, which are hidden in the details panel): those mean the component is running, not that the trigger is active, and a trigger ignores them.
 
 ---
 
 ## 12. Editor
 
-- The trigger shows an editor icon and draws all its regions, in the level viewport only (not in game). Area regions are drawn as an outline on the ground with walls up to their **Display Height**.
-- Select the trigger to see its regions' handles:
+- A trigger draws all its regions in editor viewports: the level's, and a Blueprint's. Area regions are drawn as an outline on the ground with walls up to their **Display Height**. The drawing is done by a component the trigger adds to its actor in the editor only, like the engine's editor icons: it isn't saved, isn't listed among the actor's components, and is never made in game, so it costs nothing there. `ABangoTrigger` also shows an editor icon.
+- Select the trigger's actor to see its regions' handles:
   - **Every region** has a **centre handle**: drag it with the gizmo to move the region (its Offset). The rotate gizmo turns an area (its Yaw), a box or a capsule (its Rotation). Right-click: **Reset Rotation**.
   - **Area polygons**: click a point to select it and move it with the gizmo (only X and Y); **Delete** removes it (at least 3 stay). Right-click a point: **Add Point After**, **Delete Point**, **Add Points By Clicking** (each click in the level adds a point after the selected one, snapped to the grid if snapping is on; **Esc** or **Enter** stops). Right-click an edge: **Insert Point Here**.
   - **Area rectangles and ellipses**: size handles at the middle of each side and each corner (for an ellipse, its bounding box's): drag one and that side or corner moves, the opposite one staying put (the region's Offset moves by half as much). A **rotate handle** beyond the +X side turns the region (its Yaw), snapped to the rotation grid if rotation snapping is on. Right-click: **Reset Rotation**.
   - **Box, sphere and capsule** sizes are set in the details panel for now (size handles: section 13).
 - Every change can be undone.
+- **Start State** is shown as a segmented control: **Deactivated** | **Undetermined**, the one it's set to picked. Undetermined is yellow when picked (it will run a script as play begins); Deactivated is the usual grey.
+- **With no sources**, the details panel hides what only matters for who's where: **Poll Interval**, **Presence**, **Rule** (and its Count, Min and Max), and the **On Activator In** and **On Activator Out** scripts. **Regions** is hidden too, unless it still has regions, so they can be seen and removed. Hidden values are kept, and come back when a source is added.
 
 ---
 
 ## 13. Later
-- **Runtime Bango IDs** (BangoScripts): every actor a trigger uses should be usable in scripts, with or without a hand-placed Bango ID.
 - **Sharing source results** between triggers that check in the same frame.
 - **Tags**: an actor tag filter, or a Tag source.
-- **Debugging tools**, including showing each trigger's cost (each potential actor has a watch, and a polled Condition runs for every one, so a broad source with Not Present can be costly) and drawing triggers and their sets in game.
+- **Debugging tools**, including showing each trigger's cost (each potential actor has a watch, and a polled Condition runs for every one, so a broad source with Not Present can be costly) and drawing triggers and their sets in game (a show flag, drawn with the debug draw service, so there's still nothing to move).
 - **Limits on In**, in total or per actor ("the cloud poisons 5 people").
 - **A per-actor delay before In** ("must breathe the cloud for 2 seconds").
 - **Multiplayer**, tested properly.
 - **Saving and loading** triggers' state with the game: state, activation count, timers, and the potential and actual sets (including actors gone since).
-- **Bango commands** to control triggers from scripts (`@gate EnableTrigger(false);`).
+- **Bango commands** to control triggers from scripts, shorter than `call` (`_trigger EnableTrigger(false);`, or by the actor: `@gate EnableTrigger(false);`).
 - **Event sources**: activating from game events (the event plugin).
 - **Size handles** for Box, Sphere and Capsule regions, and optional bottom and top heights for Area regions.

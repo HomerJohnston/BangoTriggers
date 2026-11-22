@@ -1,6 +1,6 @@
 #include "BangoTriggerShapeComponent.h"
 
-#include "BangoTrigger.h"
+#include "BangoTriggerComponent.h"
 #include "BangoTriggerRegion.h"
 #include "Engine/CollisionProfile.h"
 #include "PrimitiveSceneProxy.h"
@@ -14,7 +14,6 @@ namespace
 	public:
 		FBangoTriggerShapeSceneProxy(const UBangoTriggerShapeComponent* Component)
 			: FPrimitiveSceneProxy(Component)
-			, Color(Component->ShapeColor)
 		{
 			Component->GetLines(Lines);
 			bWillEverBeLit = false;
@@ -62,7 +61,7 @@ namespace
 
 	private:
 		TArray<FBangoTriggerLine> Lines;
-		FLinearColor Color;
+		FLinearColor Color = FLinearColor(1.0f, 0.55f, 0.1f);
 	};
 }
 
@@ -77,18 +76,13 @@ UBangoTriggerShapeComponent::UBangoTriggerShapeComponent()
 	SetCanEverAffectNavigation(false);
 }
 
-ABangoTrigger* UBangoTriggerShapeComponent::GetTrigger() const
-{
-	return Cast<ABangoTrigger>(GetOwner());
-}
-
 void UBangoTriggerShapeComponent::GetLines(TArray<FBangoTriggerLine>& OutLines) const
 {
 	OutLines.Reset();
-	if (const ABangoTrigger* Trigger = GetTrigger())
+	if (const UBangoTriggerComponent* TriggerComponent = GetTrigger())
 	{
-		const FTransform& Transform = Trigger->GetActorTransform();
-		for (const TInstancedStruct<FBangoTriggerRegion>& Region : Trigger->Regions)
+		const FTransform Transform = TriggerComponent->GetAnchorTransform();
+		for (const TInstancedStruct<FBangoTriggerRegion>& Region : TriggerComponent->Regions)
 		{
 			if (const FBangoTriggerRegion* Ptr = Region.GetPtr())
 			{
@@ -111,12 +105,12 @@ FPrimitiveSceneProxy* UBangoTriggerShapeComponent::CreateSceneProxy()
 
 FBoxSphereBounds UBangoTriggerShapeComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
-	// The regions are placed from the trigger's own transform, so LocalToWorld isn't used.
+	// The regions are placed from the trigger's anchor (its actor), so LocalToWorld isn't used.
 	FBox Box(ForceInit);
-	if (const ABangoTrigger* Trigger = GetTrigger())
+	if (const UBangoTriggerComponent* TriggerComponent = GetTrigger())
 	{
-		const FTransform& Transform = Trigger->GetActorTransform();
-		for (const TInstancedStruct<FBangoTriggerRegion>& Region : Trigger->Regions)
+		const FTransform Transform = TriggerComponent->GetAnchorTransform();
+		for (const TInstancedStruct<FBangoTriggerRegion>& Region : TriggerComponent->Regions)
 		{
 			if (const FBangoTriggerRegion* Ptr = Region.GetPtr())
 			{
@@ -134,6 +128,6 @@ FBoxSphereBounds UBangoTriggerShapeComponent::CalcBounds(const FTransform& Local
 void UBangoTriggerShapeComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
 {
 	Super::OnUpdateTransform(UpdateTransformFlags, Teleport);
-	// The drawing is in world space, so it's rebuilt when the trigger moves.
+	// The drawing is in world space, so it's rebuilt when the actor moves (in the editor: it isn't made in game).
 	MarkRenderStateDirty();
 }
