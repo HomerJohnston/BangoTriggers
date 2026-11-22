@@ -424,6 +424,55 @@ bool FBangoTriggersPlaySelfAndTriggerTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayManualTest, "Manual")
+
+bool FBangoTriggersPlayManualTest::RunTest(const FString& Parameters)
+{
+	// No sources and no Condition: a manual trigger. Nothing changes it but Force Activate and Force Deactivate.
+	FPlayWorld W;
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.ActivatedScript.Source = TEXT("global int ons = 0;\nons = ons + 1;");
+	});
+	TestTrue(TEXT("It's manual"), Trigger->IsManualTrigger());
+
+	W.Tick(20);
+	TestEqual(TEXT("Left alone: nothing"), W.Listener->Take(), FString());
+	TestEqual(TEXT("Left alone: idle"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Idle);
+	TestFalse(TEXT("Its Rule is never met"), Trigger->IsRuleMet());
+
+	Trigger->ForceActivate();
+	W.Tick(20);
+	TestEqual(TEXT("Forced on, and it stays on"), W.Listener->Take(), FString(TEXT("Activated:")));
+	TestTrue(TEXT("Active"), Trigger->IsTriggerActive());
+	TestEqual(TEXT("Its script ran once"), W.GetGlobalInt(TEXT("ons")), 1);
+
+	Trigger->ForceDeactivate();
+	W.Tick(20);
+	TestEqual(TEXT("Forced off, and it stays off"), W.Listener->Take(), FString(TEXT("Deactivated:")));
+	TestEqual(TEXT("Idle again"), (int32)Trigger->GetTriggerState(), (int32)EBangoTriggerState::Idle);
+	return true;
+}
+
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayManualUndeterminedTest, "Manual.Undetermined")
+
+bool FBangoTriggersPlayManualUndeterminedTest::RunTest(const FString& Parameters)
+{
+	// An Undetermined manual trigger settles once, as Deactivated (nothing is met), then waits to be forced.
+	FPlayWorld W;
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([](UBangoTriggerComponent& T)
+	{
+		T.StartState = EBangoTriggerStartState::Undetermined;
+	});
+	W.Tick(1);
+	TestEqual(TEXT("Settled off"), W.Listener->Take(), FString(TEXT("Deactivated(initial):")));
+	W.Tick(20);
+	TestEqual(TEXT("Then nothing"), W.Listener->Take(), FString());
+	Trigger->ForceActivate();
+	TestEqual(TEXT("Forced on"), W.Listener->Take(), FString(TEXT("Activated:")));
+	return true;
+}
+
 BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayNoSourcesTest, "NoSources")
 
 bool FBangoTriggersPlayNoSourcesTest::RunTest(const FString& Parameters)

@@ -199,6 +199,16 @@ void UBangoTriggerComponent::PostLoad()
 	UpdateConstants();
 }
 
+void UBangoTriggerComponent::PostApplyToComponent()
+{
+	Super::PostApplyToComponent();
+	// A Blueprint's trigger is made again whenever its actor's construction script reruns, and its edited properties
+	// (Constants among them) are put back afterwards, with no PostLoad or PostEditChangeProperty. BangoScripts keeps
+	// the scripts' instance inputs as a property too (v0.86), so they're restored as well, but this keeps the two in
+	// step by design.
+	UpdateConstants();
+}
+
 #if WITH_EDITOR
 void UBangoTriggerComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -341,6 +351,11 @@ void UBangoTriggerComponent::SetUpCondition()
 {
 	bConditionBroken = false;
 	bNoSourceMet = false;
+	if (IsManualTrigger())
+	{
+		// Nothing to watch.
+		return;
+	}
 	UBangoScriptSubsystem* Scripts = UBangoScriptSubsystem::Get(this);
 
 	if (!Condition.IsEmpty() && Scripts)
@@ -490,6 +505,16 @@ void UBangoTriggerComponent::TickTrigger(double Now)
 {
 	if (!bRunning || !bEnabled || State == EBangoTriggerState::Finished)
 	{
+		return;
+	}
+
+	if (IsManualTrigger())
+	{
+		// Nothing to check or watch; it only settles, once, if it starts Undetermined.
+		if (State == EBangoTriggerState::Undetermined)
+		{
+			UpdateRule({});
+		}
 		return;
 	}
 
@@ -661,6 +686,10 @@ void UBangoTriggerComponent::RunActivatorEvents(const TArray<FChangedActor>& Lef
 
 bool UBangoTriggerComponent::IsRuleMet() const
 {
+	if (IsManualTrigger())
+	{
+		return false;
+	}
 	BangoTriggerLogic::FRuleInput In;
 	In.Rule = Rule;
 	In.Count = RuleCount;
@@ -676,6 +705,11 @@ bool UBangoTriggerComponent::IsRuleMet() const
 
 void UBangoTriggerComponent::UpdateRule(const TArray<FChangedActor>& Changed)
 {
+	// A manual trigger's state is only ever forced; but an Undetermined one still settles (as Deactivated).
+	if (IsManualTrigger() && State != EBangoTriggerState::Undetermined)
+	{
+		return;
+	}
 	const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	switch (BangoTriggerLogic::NextStep(State, IsRuleMet(), ActivationTimer.Mode, DeactivationTimer.Mode))
 	{
@@ -798,6 +832,21 @@ void UBangoTriggerComponent::DeactivateTrigger(bool bInitial)
 	{
 		UpdateRule({});
 	}
+}
+
+double UBangoTriggerComponent::GetTimerTimeLeft() const
+{
+	if (State != EBangoTriggerState::Activating && State != EBangoTriggerState::Deactivating)
+	{
+		return -1.0;
+	}
+	// Paused while disabled.
+	if (PausedTimerLeft >= 0.0)
+	{
+		return PausedTimerLeft;
+	}
+	const UWorld* World = GetWorld();
+	return World ? FMath::Max(0.0, TimerEnd - World->GetTimeSeconds()) : -1.0;
 }
 
 EBangoTriggerState UBangoTriggerComponent::GetStartingState() const

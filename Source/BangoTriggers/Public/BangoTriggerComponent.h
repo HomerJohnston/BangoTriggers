@@ -70,7 +70,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trigger", meta = (ClampMin = "0"))
 	int32 MaxActivations = 0;
 
-	/** Who: where the trigger gets its actors from. Its own actor is never gathered. No sources: only the Condition decides. */
+	/**
+	 * Who: where the trigger gets its actors from. Its own actor is never gathered. No sources: only the Condition
+	 * decides; with no Condition either, it's a manual trigger, changed only by Force Activate and Force Deactivate.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Trigger|Who", meta = (ExcludeBaseStruct))
 	TArray<TInstancedStruct<FBangoActivatorSource>> Sources;
 
@@ -87,8 +90,8 @@ public:
 	EBangoTriggerPresence Presence = EBangoTriggerPresence::Present;
 
 	/**
-	 * Watched for each potential actor (_activator): those it's true for are actual. Empty is always true. It can read
-	 * _trigger, _activator, _actual and _potential directly.
+	 * Watched for each potential actor (_activator): those it's true for are actual. Empty is always true (but with no
+	 * sources, empty makes a manual trigger). It can read _trigger, _activator, _actual and _potential directly.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trigger|Condition")
 	FBangoInlineCondition Condition;
@@ -179,6 +182,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Bango|Trigger")
 	int32 GetActivationCount() const { return ActivationCount; }
 
+	/**
+	 * True with no sources and an empty Condition: a manual trigger. It never checks or watches anything; only Force
+	 * Activate and Force Deactivate change it (an Undetermined one settles as Deactivated). For a trigger that's always
+	 * active instead, give it the Condition `true`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Bango|Trigger")
+	bool IsManualTrigger() const { return Sources.IsEmpty() && Condition.IsEmpty(); }
+
 	/** The last On Activated script started (it may have ended since). Invalid if none has started. */
 	UFUNCTION(BlueprintPure, Category = "Bango|Trigger")
 	FBangoScriptHandle GetActivatedScriptHandle() const { return ActivatedScriptHandle; }
@@ -228,12 +239,22 @@ public:
 	/** "Actor.Component", for errors and the debugger. */
 	FString GetTriggerName() const;
 
+	/** True once it has begun play where Runs On lets it run (and its setup didn't fail). */
+	bool IsRunningHere() const { return bRunning; }
+
+	/** True if the Rule is met now (with no sources, the Condition). */
+	bool IsRuleMet() const;
+
+	/** Seconds left on the Activation or Deactivation Timer that's running, or -1 if none is. */
+	double GetTimerTimeLeft() const;
+
 	/** Redraws the regions in the editor, after changing them from code. Nothing is drawn in game. */
 	void RegionsChanged();
 
 	/**
 	 * Gives the scripts and the Condition the Constants as their own inputs (SetInstanceInputs). Done by itself when the
-	 * trigger is made, loaded, edited or begins play; call it after changing Constants from code before then. False,
+	 * trigger is made, loaded, edited, restored after its actor's construction script reruns, or begins play; call it
+	 * after changing Constants from code before then. False,
 	 * with the first error in OutError, if they can't be used (a name that's wrong or taken): the scripts then don't
 	 * compile, with that as their error.
 	 */
@@ -245,6 +266,7 @@ public:
 
 	// UActorComponent
 	virtual void OnRegister() override;
+	virtual void PostApplyToComponent() override;
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -306,7 +328,6 @@ private:
 	void UpdateGroupInputs();
 	void RunActivatorEvents(const TArray<FChangedActor>& Left, const TArray<FChangedActor>& Joined);
 
-	bool IsRuleMet() const;
 	void UpdateRule(const TArray<FChangedActor>& Changed);
 	void StartActivation(double Now);
 	void StartDeactivation(double Now);

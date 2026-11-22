@@ -26,7 +26,7 @@ Whenever the actual set changes:
 1. Actors that joined or left it run **On Activator Out** and **On Activator In** (section 7).
 2. The **Rule** (section 6) is tested on the sets. It switching from not met to met (after the Activation Timer, if any) **activates** the trigger: **On Activated**. It switching back **deactivates** it: **On Deactivated** (section 7).
 
-A trigger with **no sources** has no actors: its Condition is watched once, and the trigger is active while it's true (section 5).
+A trigger with **no sources** has no actors: its Condition is watched once, and the trigger is active while it's true (section 5). With **no sources and no Condition**, it's a **manual** trigger: only Force Activate and Force Deactivate change it (section 5).
 
 ---
 
@@ -103,6 +103,12 @@ So a gasmask Condition that reads a global is checked only when that global chan
 
 ### With no sources
 There are no actors, so the trigger watches its Condition once, with `_activator` `nil`. The trigger is active while it's `true` (the Rule isn't used), and On Activator In and Out never run.
+
+### Manual triggers
+With no sources **and an empty Condition**, a trigger is **manual** (**Is Manual Trigger**): it never checks or watches anything, and nothing activates it but **Force Activate**, and nothing deactivates it but **Force Deactivate** (from Blueprint, C++, or a script: `_trigger call ForceActivate();`). For a door opened by a lever's script, say.
+- Its timers aren't used: Force Activate and Force Deactivate never wait.
+- With Start State **Undetermined** it settles once, at its first check, as **Deactivated** (On Deactivated runs, `_initial` true): nothing is met. Then it waits to be forced.
+- For a trigger that's simply always active instead, give it the Condition `true`.
 
 ### A Condition that reads `_actual`
 A Condition can depend on the actual set it decides, like "only while fewer than 3 are already poisoned". Each change to `_actual` checks every watch that reads it again, at the end of the next frame. Bango does at most one round of checks per frame, so this can't loop forever, but the set can **flicker**: actors joining, which makes others leave, which lets them join again. Avoid it unless it's what you want.
@@ -255,7 +261,7 @@ A trigger's **Constants** list holds values of its own, which **all its scripts 
 - They're the scripts' **instance inputs** (BangoSpec section 15, Instance inputs): the editor knows them as you type (autocomplete, colouring, errors, the SCRIPT INPUTS list), and follows them as they're edited, without the scripts being edited.
 - A name a built-in input has (`_trigger`, `_initial`, ...), or another constant's, is an error, shown as the error of each script that has that input (in the editor, and when it begins play) until it's renamed: a constant called `_initial` breaks On Activated and On Deactivated, whose input that is, but not the others. Rename it rather than rely on that.
 - Their values are worked out when the trigger begins play (`Bango::ParseFixedValue`, as a script variable's starting value is read), and never change while it runs: a picked actor's entity is the actor's then (its Bango ID, or the ID it's given). A value that can't be read is reported then, and is `nil`. A Condition that reads them isn't polled for them.
-- In C++, after changing `Constants` before it begins play, call `UpdateConstants()` so the scripts get the new list (it's done by itself when the trigger is made, loaded, edited, undone, pasted, and as it begins play). Each is an `FBangoTriggerConstant`: `Name`, `Type`, `Value` (the Bango text) and `Actor` (an `entity`'s).
+- In C++, after changing `Constants` before it begins play, call `UpdateConstants()` so the scripts get the new list (it's done by itself when the trigger is made, loaded, edited, undone, pasted, restored after its actor's construction script reruns, and as it begins play). Each is an `FBangoTriggerConstant`: `Name`, `Type`, `Value` (the Bango text) and `Actor` (an `entity`'s).
 
 ---
 
@@ -329,6 +335,7 @@ Functions:
 - **Get Activation Count**.
 - **Get Activated Script Handle**, **Get Deactivated Script Handle**: the last On Activated and On Deactivated scripts started (they may have ended since); for **Terminate Bango Script** or **Is Bango Script Running**. Invalid if none has started.
 - **Get Actual Activators**, **Get Potential Activators**, **Get Gathered Actors**: the sets from the last check.
+- **Is Manual Trigger**: no sources and an empty Condition (section 5, Manual triggers).
 - **Force Activate**: activates now (counts as an activation) if it isn't active or finished; `_activators` is empty.
 - **Force Deactivate**: deactivates now if it's active or Undetermined.
 - **Reset Trigger**: back to its Start State (Idle, or Undetermined) with no activations and empty sets. Nothing is run now; an Undetermined trigger settles again at its next check.
@@ -349,12 +356,20 @@ These are the component's own, so scripts can use them with `call` (`_trigger ca
 - **Start State** is shown as a segmented control: **Deactivated** | **Undetermined**, the one it's set to picked. Undetermined is yellow when picked (it will run a script as play begins); Deactivated is the usual grey.
 - **With no sources**, the details panel hides what only matters for who's where: **Poll Interval**, **Presence**, **Rule** (and its Count, Min and Max), and the **On Activator In** and **On Activator Out** scripts. **Regions** is hidden too, unless it still has regions, so they can be seen and removed. Hidden values are kept, and come back when a source is added.
 
+### Debugging
+The **Bango Triggers** show flag (Show > Developer > Bango Triggers in the editor and in play-in-editor, or `ShowFlag.BangoTriggers 1` in the console; not in shipping builds) draws every trigger in the viewport's world, over everything:
+- **While playing**, each trigger's regions in its state's colour: grey Idle, yellow Undetermined, orange Activating, green Active, blue Deactivating, dark Finished. A disabled trigger, or one that isn't running here (Runs On), is faint.
+- A line from the trigger to each actor it has gathered: **green**, actual; **red**, potential but its Condition is false; **grey**, not in the right place.
+- A label over it: its name; its state (and "disabled"); with sources, how many are actual, potential and gathered, and its Rule and whether it's met (with none, whether the Condition is; "Manual" for a manual trigger); a running timer's time left ("Activates in 1.4s", "paused" while disabled); its activations ("Activations 1 / 3").
+- **In the editor**, where the regions are drawn anyway: just a label with its name and Start State.
+- It's drawn by the debug draw service on the viewport's canvas: a trigger gets nothing added, and it costs nothing while the flag is off.
+
 ---
 
 ## 13. Later
 - **Sharing source results** between triggers that check in the same frame.
 - **Tags**: an actor tag filter, or a Tag source.
-- **Debugging tools**, including showing each trigger's cost (each potential actor has a watch, and a polled Condition runs for every one, so a broad source with Not Present can be costly) and drawing triggers and their sets in game (a show flag, drawn with the debug draw service, so there's still nothing to move).
+- **More debugging tools**: each trigger's cost (each potential actor has a watch, and a polled Condition runs for every one, so a broad source with Not Present can be costly) in a `stat` group and per trigger; console commands to list, log and force triggers; Visual Logger recording; warnings for likely mistakes before playing (Map Check); a Gameplay Debugger category.
 - **Limits on In**, in total or per actor ("the cloud poisons 5 people").
 - **A per-actor delay before In** ("must breathe the cloud for 2 seconds").
 - **Multiplayer**, tested properly.
