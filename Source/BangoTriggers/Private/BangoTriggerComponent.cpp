@@ -46,10 +46,6 @@ UBangoTriggerComponent::UBangoTriggerComponent()
 	// UBangoTriggerSubsystem ticks every trigger in one place.
 	PrimaryComponentTick.bCanEverTick = false;
 
-	// A new trigger: "a player enters this area".
-	Sources.Add(TInstancedStruct<FBangoActivatorSource>::Make<FBangoPlayersSource>());
-	Regions.Add(TInstancedStruct<FBangoTriggerRegion>::Make<FBangoAreaRegion>());
-
 	// The inputs the trigger gives its scripts (MakeEventArgs passes them in this order) and its Condition (by name).
 	if (IsTemplate())
 	{

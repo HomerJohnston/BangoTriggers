@@ -99,8 +99,7 @@ namespace BangoTriggerPlayTestsPrivate
 
 		static void Clear(UBangoTriggerComponent& Trigger)
 		{
-			Trigger.Sources.Reset();
-			Trigger.Regions.Reset();
+			// A new trigger has no sources or regions already.
 			Trigger.PollInterval = 0.0f;
 		}
 
