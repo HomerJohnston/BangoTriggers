@@ -34,8 +34,8 @@ void FBangoTriggerConstantCustomization::CustomizeHeader(TSharedRef<IPropertyHan
 	.NameContent()
 	[
 		SNew(SEditableTextBox)
+		// No minimum width: it shrinks with the name column, as the engine's own name widgets do.
 		.Font(CustomizationUtils.GetRegularFont())
-		.MinDesiredWidth(100.0f)
 		.Text_Lambda([this]()
 		{
 			FString Name;
