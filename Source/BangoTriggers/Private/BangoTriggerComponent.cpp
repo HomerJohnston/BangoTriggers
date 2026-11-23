@@ -153,33 +153,9 @@ void UBangoTriggerComponent::RegionsChanged()
 
 bool UBangoTriggerComponent::UpdateConstants(FString* OutError)
 {
-	TArray<FBangoInputDecl> Inputs;
-	for (const FBangoTriggerConstant& Constant : Constants)
-	{
-		Inputs.Emplace(Constant.GetDeclaration());
-	}
-
-	// The same list for each: setting it again when nothing changed does nothing. A wrong one is shown as the
-	// scripts' error (in the editor too), so only the first is passed on.
-	bool bAllGood = true;
-	FString FirstError;
-	for (FBangoInlineScriptBase* Script : TArray<FBangoInlineScriptBase*>{ &ActivatorInScript, &ActivatorOutScript, &ActivatedScript, &DeactivatedScript, &Condition })
-	{
-		FString Error;
-		if (!Script->SetInstanceInputs(Inputs, &Error))
-		{
-			if (bAllGood)
-			{
-				FirstError = Error;
-			}
-			bAllGood = false;
-		}
-	}
-	if (OutError)
-	{
-		*OutError = FirstError;
-	}
-	return bAllGood;
+	// The same list for each of them (setting it again when nothing changed does nothing).
+	FBangoInlineScriptBase* const Scripts[] = { &ActivatorInScript, &ActivatorOutScript, &ActivatedScript, &DeactivatedScript, &Condition };
+	return Bango::SetConstantInputs(Constants, Scripts, OutError);
 }
 
 void UBangoTriggerComponent::PostInitProperties()
@@ -297,20 +273,18 @@ void UBangoTriggerComponent::BeginPlay()
 	}
 
 	// Their own inputs, then their values. A wrong list shows as the scripts' compile errors, next; a wrong value is
-	// reported here, and is nil. (An actor's Bango ID may not have begun play yet: GetValue registers it first.)
+	// reported here, and is nil. (A picked actor's Bango ID may not have begun play yet: BangoScripts registers it.)
 	UpdateConstants();
-	ConstantValues.Reset();
-	ConstantInputs.Reset();
-	for (const FBangoTriggerConstant& Constant : Constants)
+	TArray<FString> ConstantErrors;
+	Bango::GetConstantValues(Constants, ConstantValues, &ConstantErrors);
+	for (const FString& ConstantError : ConstantErrors)
 	{
-		FBangoValue Value;
-		FString ValueError;
-		if (!Constant.GetValue(Value, ValueError))
-		{
-			Bango::ReportError(FString::Printf(TEXT("The trigger %s's constant %s can't be used: %s"), *GetTriggerName(), *Constant.Name, *ValueError));
-		}
-		ConstantValues.Add(Value);
-		ConstantInputs.Add({ Constant.Name, Value });
+		Bango::ReportError(FString::Printf(TEXT("The trigger %s's constant %s"), *GetTriggerName(), *ConstantError));
+	}
+	ConstantInputs.Reset();
+	for (int32 Index = 0; Index < Constants.Num(); ++Index)
+	{
+		ConstantInputs.Add({ Constants[Index].Name, ConstantValues[Index] });
 	}
 
 	// Owned by the actor, which is `self` in them.

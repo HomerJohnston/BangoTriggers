@@ -659,13 +659,12 @@ bool FBangoTriggersPlayComponentActivationTest::RunTest(const FString& Parameter
 
 namespace
 {
-	FBangoTriggerConstant MakeConstant(const TCHAR* Name, const TCHAR* Type, const TCHAR* Value, AActor* Actor = nullptr)
+	FBangoConstant MakeConstant(const TCHAR* Name, const TCHAR* Type, const TCHAR* Value)
 	{
-		FBangoTriggerConstant Constant;
+		FBangoConstant Constant;
 		Constant.Name = Name;
 		Constant.Type = Type;
 		Constant.Value = Value;
-		Constant.Actor = Actor;
 		return Constant;
 	}
 }
@@ -678,16 +677,20 @@ bool FBangoTriggersPlayConstantsTest::RunTest(const FString& Parameters)
 	FPlayWorld W;
 	ABangoTriggerTestActor* A = W.Spawn(TEXT("a"), Inside);
 	ABangoTriggerTestActor* Lamp = W.Spawn(TEXT("lamp"), FVector(9000, 0, 0));
-	W.Spawn(TEXT("bulb"), FVector(9500, 0, 0));
-	UBangoTriggerComponent* Trigger = W.SpawnTrigger([Lamp](UBangoTriggerComponent& T)
+	ABangoTriggerTestActor* Bulb = W.Spawn(TEXT("bulb"), FVector(9500, 0, 0));
+	UBangoTriggerComponent* Trigger = W.SpawnTrigger([Lamp, Bulb](UBangoTriggerComponent& T)
 	{
 		T.Sources.Add(IDs({ TEXT("a") }));
 		T.Regions.Add(Box200());
 		T.Constants.Add(MakeConstant(TEXT("_red"), TEXT("vector3"), TEXT("[1, 0, 0]")));
 		T.Constants.Add(MakeConstant(TEXT("_need"), TEXT("int"), TEXT("3")));
-		// An entity is a picked actor; its Value text isn't used.
-		T.Constants.Add(MakeConstant(TEXT("_lamp"), TEXT("entity"), TEXT("ignored"), Lamp));
-		T.Constants.Add(MakeConstant(TEXT("_lamps"), TEXT("entity[]"), TEXT("[@bulb, nil]")));
+		// An entity is a picked actor, and an entity[] a list of them (a gap is a nil element); their Value isn't used.
+		FBangoConstant LampConstant = MakeConstant(TEXT("_lamp"), TEXT("entity"), TEXT("ignored"));
+		LampConstant.Actor = Lamp;
+		T.Constants.Add(LampConstant);
+		FBangoConstant LampsConstant = MakeConstant(TEXT("_lamps"), TEXT("entity[]"), TEXT(""));
+		LampsConstant.Actors = { Bulb, nullptr };
+		T.Constants.Add(LampsConstant);
 		// The Condition is only true while the global reaches the constant.
 		T.Condition.Source = TEXT("have >= _need");
 		T.ActivatorInScript.Source = TEXT("global float inRed = 0;\ninRed = _red.x;");
@@ -702,33 +705,12 @@ bool FBangoTriggersPlayConstantsTest::RunTest(const FString& Parameters)
 	W.Tick();
 	TestEqual(TEXT("Condition reaches the constant"), W.Listener->Take(), FString(TEXT("In:a|Activated:a")));
 	TestEqual(TEXT("On Activator In read a vector3"), W.GetGlobalFloat(TEXT("inRed")), 1.0);
-	TestEqual(TEXT("On Activated read a picked actor and an entity array (after _initial)"), W.GetGlobalInt(TEXT("lampOk")), 1);
+	TestEqual(TEXT("On Activated read a picked actor and picked actors (after _initial)"), W.GetGlobalInt(TEXT("lampOk")), 1);
 
 	A->SetActorLocation(Outside);
 	W.Tick();
 	TestEqual(TEXT("Out"), W.Listener->Take(), FString(TEXT("Out:a|Deactivated:a")));
 	TestEqual(TEXT("On Deactivated read two"), W.GetGlobalFloat(TEXT("outRed")), 4.0);
-	return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBangoTriggersConstantValuesTest, "Triggers.Constants.Values",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FBangoTriggersConstantValuesTest::RunTest(const FString& Parameters)
-{
-	// A constant's value, read from its Bango text as a script variable's is.
-	FBangoValue Value;
-	FString Error;
-	TestTrue(TEXT("int"), MakeConstant(TEXT("_n"), TEXT("int"), TEXT("3")).GetValue(Value, Error) && Value.GetInt() == 3);
-	TestTrue(TEXT("Empty is nil"), MakeConstant(TEXT("_n"), TEXT("int"), TEXT("")).GetValue(Value, Error) && Value.IsNil());
-	TestTrue(TEXT("vector3"), MakeConstant(TEXT("_v"), TEXT("vector3"), TEXT("[1, 2, 3]")).GetValue(Value, Error)
-		&& Value == FBangoValue::MakeVector3(1, 2, 3));
-	TestTrue(TEXT("entity with no actor: nil"), MakeConstant(TEXT("_e"), TEXT("entity"), TEXT("")).GetValue(Value, Error) && Value.IsNil());
-
-	TestFalse(TEXT("A vector3 with 2 numbers"), MakeConstant(TEXT("_v"), TEXT("vector3"), TEXT("[1, 2]")).GetValue(Value, Error));
-	TestFalse(TEXT("Not a fixed value"), MakeConstant(TEXT("_n"), TEXT("int"), TEXT("1 + 2")).GetValue(Value, Error));
-	TestFalse(TEXT("Not a type"), MakeConstant(TEXT("_n"), TEXT("integer"), TEXT("1")).GetValue(Value, Error));
-	TestTrue(TEXT("It says why"), Error.Contains(TEXT("integer")));
 	return true;
 }
 

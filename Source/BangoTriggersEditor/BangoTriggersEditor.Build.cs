@@ -19,9 +19,6 @@ public class BangoTriggersEditor : ModuleRules
 			new string[]
 			{
 				"BangoTriggers",
-				"BangoScripts",
-				// The script editor's type picker and value box, for the Constants rows.
-				"BangoScriptsScriptEditor",
 				"UnrealEd",
 				"InputCore",
 				"Slate",

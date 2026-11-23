@@ -7,7 +7,7 @@
 #include "BangoConditionWatches.h"
 #include "BangoInlineScript.h"
 #include "BangoTriggerCode.h"
-#include "BangoTriggerConstant.h"
+#include "BangoConstant.h"
 #include "BangoTriggerRegion.h"
 #include "BangoTriggerTypes.h"
 #include "BangoTypes.h"
@@ -113,12 +113,13 @@ public:
 	int32 RuleMax = 1;
 
 	/**
-	 * This trigger's own constants: every one of its scripts, and its Condition, can read them as inputs, after the
-	 * built-in ones (`_red`, `_blue`). For values that differ from one trigger to the next, kept in one place. Each is
-	 * a name, a type and a value, edited as a script variable is.
+	 * This trigger's own constants (BangoScripts' FBangoConstant): every one of its scripts, and its Condition, can
+	 * read them as inputs, after the built-in ones (`_red`, `_blue`, `_lamps`). For values that differ from one trigger
+	 * to the next, kept in one place. Each is a name, a type and a value, edited as a script variable is; an `entity`
+	 * or `entity[]` is picked in the level.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Trigger|Constants")
-	TArray<FBangoTriggerConstant> Constants;
+	TArray<FBangoConstant> Constants;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Trigger|Timers")
 	FBangoTriggerTimer ActivationTimer;

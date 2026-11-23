@@ -2,7 +2,7 @@
 
 #include "Modules/ModuleManager.h"
 
-/** Editor tools for Bango Triggers: editing a trigger's regions in the level viewport, and its Constants' rows. */
+/** Editor tools for Bango Triggers: editing a trigger's regions in the level viewport, and its Start State control. */
 class FBangoTriggersEditorModule : public IModuleInterface
 {
 public:
