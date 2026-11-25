@@ -14,10 +14,12 @@ void FBangoTriggerScript::Prepare(const FBangoInlineScript& InScript, const UObj
 		return;
 	}
 
-	// The same name and script UBangoScriptSubsystem::Spawn uses, so the program compiled here is the one it runs.
+	// The same name and script UBangoScriptSubsystem::Spawn uses, so the program compiled here is the one it runs. The
+	// owner is passed too, so a compile error names the object (the trigger's actor), not just its class.
 	TSharedPtr<const FBangoProgram> Program;
 	FString Error;
-	if (!FBangoModule::Get().GetInlineProgram(Script, UBangoScriptSubsystem::GetInlineScriptName(InOwner), Program, Error) || !Program.IsValid())
+	if (!FBangoModule::Get().GetInlineProgram(Script, UBangoScriptSubsystem::GetInlineScriptName(InOwner), Program, Error, nullptr, InOwner)
+		|| !Program.IsValid())
 	{
 		Bango::ReportError(Error);
 		return;
