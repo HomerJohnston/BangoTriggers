@@ -472,6 +472,46 @@ bool FBangoTriggersPlayManualUndeterminedTest::RunTest(const FString& Parameters
 	return true;
 }
 
+BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayPersistentPerTriggerTest, "PersistentPerTrigger")
+
+bool FBangoTriggersPlayPersistentPerTriggerTest::RunTest(const FString& Parameters)
+{
+	// Two triggers on one actor with the same script, ID and all (a component duplicated in a Blueprint): each keeps
+	// its own persistent variables, since it's their holder, though both spawn them with the actor as the owner.
+	FPlayWorld W;
+	ABangoTriggerTestActor* Door = W.Spawn(TEXT("door"), Inside);
+	const FGuid SharedId = FGuid::NewGuid();
+	auto Setup = [SharedId](int32 Which)
+	{
+		return [SharedId, Which](UBangoTriggerComponent& T)
+		{
+			T.ActivatedScript.ScriptId = SharedId;
+			T.ActivatedScript.Source = TEXT("persistent int _count ?= 0;\n_count = _count + 1;\nglobal int c1 = 0;\nglobal int c2 = 0;\n")
+				TEXT("if (_which == 1) { c1 = _count; } else { c2 = _count; }");
+			FBangoConstant WhichConstant;
+			WhichConstant.Name = TEXT("_which");
+			WhichConstant.Type = TEXT("int");
+			WhichConstant.Value = FString::FromInt(Which);
+			T.Constants.Add(WhichConstant);
+		};
+	};
+	UBangoTriggerComponent* First = W.AddTrigger(Door, Setup(1));
+	UBangoTriggerComponent* Second = NewObject<UBangoTriggerComponent>(Door, TEXT("DoorTrigger2"));
+	W.Clear(*Second);
+	Setup(2)(*Second);
+	Second->RegisterComponent();
+
+	// Manual triggers: forced on and off.
+	First->ForceActivate();
+	First->ForceDeactivate();
+	First->ForceActivate();
+	TestEqual(TEXT("The first counted its own runs"), W.GetGlobalInt(TEXT("c1")), 2);
+
+	Second->ForceActivate();
+	TestEqual(TEXT("The second starts from its own, not the first's"), W.GetGlobalInt(TEXT("c2")), 1);
+	return true;
+}
+
 BANGO_TRIGGER_PLAY_TEST(FBangoTriggersPlayNoSourcesTest, "NoSources")
 
 bool FBangoTriggersPlayNoSourcesTest::RunTest(const FString& Parameters)

@@ -104,6 +104,15 @@ void UBangoTriggerComponent::OnRegister()
 {
 	Super::OnRegister();
 
+	// Its scripts are spawned with the actor as their owner (so `self` is the actor), but they're this component's:
+	// their persistent variables are kept for it, not shared with another trigger on the same actor (a duplicated one,
+	// with the same scripts). Not saved, so set each time it's registered; Prepare's copies keep it.
+	FBangoInlineScriptBase* const Scripts[] = { &ActivatorInScript, &ActivatorOutScript, &ActivatedScript, &DeactivatedScript, &Condition };
+	for (FBangoInlineScriptBase* Script : Scripts)
+	{
+		Script->SetHolder(this);
+	}
+
 #if WITH_EDITORONLY_DATA
 	// As scene components make their editor sprite: only in editor worlds (the level, a Blueprint's viewport), never in
 	// game, so a trigger costs nothing to move while playing. On the root, so it follows the actor in the editor.
